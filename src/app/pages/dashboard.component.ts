@@ -8,56 +8,113 @@ import { RouterLink } from '@angular/router';
   standalone: true,
   imports: [CommonModule, RouterLink],
   template: `
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <div class="bg-blue-500 text-white p-6 rounded-lg shadow-md">
-        <h3 class="text-4xl font-bold">{{ stats().emAndamento }}</h3>
-        <p class="mt-1">O.S. em andamento</p>
-      </div>
-      <div class="bg-green-500 text-white p-6 rounded-lg shadow-md">
-        <h3 class="text-4xl font-bold">{{ stats().entreguesMes }}</h3>
-        <p class="mt-1">O.S. entregues este mês</p>
-      </div>
-      <div class="bg-yellow-500 text-white p-6 rounded-lg shadow-md">
-        <h3 class="text-4xl font-bold">{{ stats().aguardando }}</h3>
-        <p class="mt-1">O.S. aguardando aprovação</p>
-      </div>
-      <div class="bg-gray-500 text-white p-6 rounded-lg shadow-md">
-        <h3 class="text-4xl font-bold">0</h3>
-        <p class="mt-1">O.S. com previsão para hoje</p>
-      </div>
-    </div>
+    <section class="space-y-8">
+      <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div
+          class="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur"
+        >
+          <span class="absolute inset-0 bg-gradient-to-br from-sky-500/35 via-slate-900/40 to-transparent"></span>
+          <div class="relative flex flex-col gap-1">
+            <p class="text-xs font-semibold uppercase tracking-[0.45em] text-sky-200/60">Fluxo</p>
+            <h3 class="text-4xl font-semibold text-white">{{ stats().emAndamento }}</h3>
+            <p class="text-sm text-slate-300/80">O.S. em andamento</p>
+          </div>
+        </div>
 
-    <div class="mt-8 bg-white p-6 rounded-lg shadow-md">
-      <h2 class="text-lg font-semibold text-gray-700 mb-4">O.S. Recentes</h2>
-      <div class="overflow-x-auto">
-          <table class="min-w-full bg-white">
-            <thead class="bg-gray-50">
-                <tr>
-                  <th class="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">O.S. #</th>
-                  <th class="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Placa</th>
-                  <th class="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
-                  <th class="py-3 px-6 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Data Entrada</th>
-                  <th class="py-3 px-6 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                </tr>
-            </thead>
-            <tbody class="text-gray-600 text-sm font-light">
-              @for (os of ordensServico().slice(0, 5); track os.id) {
-                <tr class="border-b border-gray-200 hover:bg-gray-50">
-                   <td class="py-3 px-6 text-left">
-                     <a [routerLink]="['/ordens-servico', os.id]" class="text-blue-600 font-medium hover:underline">#{{ os.id }}</a>
-                   </td>
-                   <td class="py-3 px-6 text-left">{{ getVeiculo(os.veiculoId)?.placa }}</td>
-                   <td class="py-3 px-6 text-left">{{ getCliente(os.clienteId)?.nome }}</td>
-                   <td class="py-3 px-6 text-center">{{ os.dataEntrada }}</td>
-                   <td class="py-3 px-6 text-center">
-                     <span class="py-1 px-3 rounded-full text-xs" [ngClass]="getStatusClass(os.status)">{{ os.status }}</span>
-                   </td>
-                </tr>
-              }
-            </tbody>
-          </table>
+        <div
+          class="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur"
+        >
+          <span class="absolute inset-0 bg-gradient-to-br from-emerald-500/35 via-slate-900/40 to-transparent"></span>
+          <div class="relative flex flex-col gap-1">
+            <p class="text-xs font-semibold uppercase tracking-[0.45em] text-emerald-200/60">Entrega</p>
+            <h3 class="text-4xl font-semibold text-white">{{ stats().entreguesMes }}</h3>
+            <p class="text-sm text-slate-300/80">O.S. entregues este mês</p>
+          </div>
+        </div>
+
+        <div
+          class="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur"
+        >
+          <span class="absolute inset-0 bg-gradient-to-br from-amber-500/35 via-slate-900/40 to-transparent"></span>
+          <div class="relative flex flex-col gap-1">
+            <p class="text-xs font-semibold uppercase tracking-[0.45em] text-amber-200/60">Aprovação</p>
+            <h3 class="text-4xl font-semibold text-white">{{ stats().aguardando }}</h3>
+            <p class="text-sm text-slate-300/80">O.S. aguardando aprovação</p>
+          </div>
+        </div>
+
+        <div
+          class="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur"
+        >
+          <span class="absolute inset-0 bg-gradient-to-br from-indigo-500/35 via-slate-900/40 to-transparent"></span>
+          <div class="relative flex flex-col gap-1">
+            <p class="text-xs font-semibold uppercase tracking-[0.45em] text-indigo-200/60">Agenda</p>
+            <h3 class="text-4xl font-semibold text-white">0</h3>
+            <p class="text-sm text-slate-300/80">O.S. com previsão para hoje</p>
+          </div>
+        </div>
       </div>
-    </div>
+
+      <div
+        class="rounded-3xl border border-white/10 bg-slate-900/60 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur sm:p-8"
+      >
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.45em] text-sky-200/60">Últimas movimentações</p>
+            <h2 class="text-xl font-semibold text-white">O.S. Recentes</h2>
+            <p class="text-sm text-slate-300/80">Acompanhe as solicitações mais recentes registradas na oficina.</p>
+          </div>
+
+          <a
+            class="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-sky-200 transition hover:bg-white/10 hover:text-sky-100"
+            routerLink="/ordens-servico"
+          >
+            Ver todas as ordens
+          </a>
+        </div>
+
+        <div class="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-white/10 text-left text-sm text-slate-100">
+              <thead class="bg-white/5 text-xs uppercase tracking-wider text-slate-300">
+                <tr>
+                  <th class="px-6 py-3 font-semibold">O.S. #</th>
+                  <th class="px-6 py-3 font-semibold">Placa</th>
+                  <th class="px-6 py-3 font-semibold">Cliente</th>
+                  <th class="px-6 py-3 text-center font-semibold">Data Entrada</th>
+                  <th class="px-6 py-3 text-center font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/5 text-sm">
+                @for (os of ordensServico().slice(0, 5); track os.id) {
+                  <tr class="transition hover:bg-white/5">
+                    <td class="whitespace-nowrap px-6 py-4 font-semibold text-sky-300">
+                      <a
+                        [routerLink]="['/ordens-servico', os.id]"
+                        class="transition hover:text-sky-200"
+                      >
+                        #{{ os.id }}
+                      </a>
+                    </td>
+                    <td class="px-6 py-4">{{ getVeiculo(os.veiculoId)?.placa }}</td>
+                    <td class="px-6 py-4">{{ getCliente(os.clienteId)?.nome }}</td>
+                    <td class="px-6 py-4 text-center">{{ os.dataEntrada }}</td>
+                    <td class="px-6 py-4 text-center">
+                      <span
+                        class="inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold"
+                        [ngClass]="getStatusClass(os.status)"
+                      >
+                        {{ os.status }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
   `,
 })
 export class DashboardComponent {
@@ -86,10 +143,14 @@ export class DashboardComponent {
 
   getStatusClass(status: string) {
     switch (status) {
-      case 'Em Andamento': return 'bg-blue-100 text-blue-800';
-      case 'Aguardando Aprovação': return 'bg-yellow-100 text-yellow-800';
-      case 'Finalizada': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'Em Andamento':
+        return 'bg-sky-500/20 text-sky-200';
+      case 'Aguardando Aprovação':
+        return 'bg-amber-500/20 text-amber-200';
+      case 'Finalizada':
+        return 'bg-emerald-500/20 text-emerald-200';
+      default:
+        return 'bg-slate-500/20 text-slate-200';
     }
   }
 }
