@@ -13,7 +13,7 @@ import { Veiculo } from '../core/models/models';
       <div class="flex flex-col gap-6">
         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.45em] text-sky-300/70">Frota</p>
+            <p class="text-xs font-semibold uppercase tracking-[0.45em] text-sky-300/70">Veículos</p>
             <h2 class="text-2xl font-semibold text-white">Cadastro de veículos</h2>
             <p class="text-sm text-slate-300/80">Monitore todos os veículos vinculados à sua carteira de clientes.</p>
           </div>

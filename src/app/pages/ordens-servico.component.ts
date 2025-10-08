@@ -77,9 +77,6 @@ import { DataService } from '../core/services/data.service';
                 <h3 class="text-lg font-semibold text-white">Nova ordem de serviço</h3>
                 <p class="text-sm text-slate-300/80">Cadastre uma nova solicitação vinculando cliente, veículo e observações.</p>
               </div>
-              <button class="text-sm font-medium text-sky-300 transition hover:text-sky-200" (click)="voltarParaLista()">
-                Voltar para a lista
-              </button>
             </div>
             <form class="grid gap-5 md:grid-cols-2" (ngSubmit)="salvarOrdem()">
               <label class="flex flex-col text-sm text-slate-200">
@@ -176,9 +173,6 @@ import { DataService } from '../core/services/data.service';
                 <h3 class="text-lg font-semibold text-white">Resumo da ordem #{{ ordemSelecionada()?.id }}</h3>
                 <p class="text-sm text-slate-300/80">Veja o panorama completo de serviços, peças e anotações.</p>
               </div>
-              <button class="text-sm font-medium text-sky-300 transition hover:text-sky-200" (click)="voltarParaLista()">
-                Voltar para a lista
-              </button>
             </div>
 
             <div class="grid gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-200 md:grid-cols-2">
