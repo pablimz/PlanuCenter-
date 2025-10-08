@@ -17,6 +17,8 @@ export interface Servico {
 export interface Cliente {
   id: number;
   nome: string;
+  email?: string;
+  telefone?: string;
 }
 
 export interface Veiculo {
