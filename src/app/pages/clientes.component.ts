@@ -19,12 +19,25 @@ import { Cliente } from '../core/models/models';
           </div>
 
           @if (modoVisualizacao() === 'lista') {
-            <button
-              class="w-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-500 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:from-emerald-300 hover:via-teal-300 hover:to-sky-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 md:w-auto"
-              (click)="abrirFormularioNovo()"
-            >
-              + Cadastrar cliente
-            </button>
+            <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+              <label class="relative flex w-full items-center sm:w-72">
+                <svg class="absolute left-4 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35M18 10.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
+                <input
+                  type="search"
+                  class="w-full rounded-full border border-white/10 bg-slate-900/60 py-2 pl-11 pr-4 text-sm text-slate-100 placeholder:text-slate-400 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+                  placeholder="Buscar por nome, e-mail ou telefone"
+                  [ngModel]="filtroBusca()"
+                  (ngModelChange)="atualizarFiltro($event)"
+                />
+              </label>
+
+              <button
+                class="w-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-500 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:from-emerald-300 hover:via-teal-300 hover:to-sky-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 sm:w-auto"
+                (click)="abrirFormularioNovo()"
+              >
+                + Cadastrar cliente
+              </button>
+            </div>
           } @else {
             <button
               class="w-full rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-100 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 md:w-auto"
@@ -48,21 +61,33 @@ import { Cliente } from '../core/models/models';
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-white/5 text-sm">
-                  @for (cliente of clientes(); track cliente.id) {
-                    <tr class="transition hover:bg-white/5">
-                      <td class="px-6 py-4 font-medium text-white">{{ cliente.nome }}</td>
-                      <td class="px-6 py-4 text-slate-200">{{ cliente.email }}</td>
-                      <td class="px-6 py-4 text-slate-200">{{ cliente.telefone }}</td>
-                      <td class="px-6 py-4 text-center">
-                        <div class="flex flex-wrap justify-center gap-2">
-                          <button
-                            class="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-white/20"
-                            (click)="editarCliente(cliente)"
-                          >
-                            Editar
-                          </button>
-                        </div>
-                      </td>
+                  @if (clientesFiltrados().length) {
+                    @for (cliente of clientesFiltrados(); track cliente.id) {
+                      <tr class="transition hover:bg-white/5">
+                        <td class="px-6 py-4 font-medium text-white">{{ cliente.nome }}</td>
+                        <td class="px-6 py-4 text-slate-200">{{ cliente.email }}</td>
+                        <td class="px-6 py-4 text-slate-200">{{ cliente.telefone }}</td>
+                        <td class="px-6 py-4 text-center">
+                          <div class="flex flex-wrap justify-center gap-2">
+                            <button
+                              class="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-white/20"
+                              (click)="verDetalhes(cliente)"
+                            >
+                              Detalhes
+                            </button>
+                            <button
+                              class="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-4 py-1.5 text-xs font-semibold text-white shadow shadow-slate-950/40 transition hover:from-sky-400 hover:to-indigo-400"
+                              (click)="editarCliente(cliente)"
+                            >
+                              Editar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  } @else {
+                    <tr>
+                      <td colspan="4" class="px-6 py-6 text-center text-sm text-slate-300">Nenhum cliente encontrado.</td>
                     </tr>
                   }
                 </tbody>
@@ -112,6 +137,15 @@ import { Cliente } from '../core/models/models';
               >
                 Cancelar
               </button>
+              @if (editandoId()) {
+                <button
+                  type="button"
+                  class="rounded-full border border-rose-400/60 bg-rose-500/10 px-5 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20"
+                  (click)="excluirCliente()"
+                >
+                  Excluir cliente
+                </button>
+              }
               <button
                 type="submit"
                 class="rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-950/40 transition hover:from-sky-400 hover:to-indigo-400"
@@ -183,6 +217,20 @@ export class ClientesComponent {
   modoVisualizacao = signal<'lista' | 'formulario' | 'detalhes'>('lista');
   editandoId = signal<number | null>(null);
   clienteSelecionadoId = signal<number | null>(null);
+  filtroBusca = signal('');
+
+  clientesFiltrados = computed(() => {
+    const termo = this.filtroBusca().trim().toLowerCase();
+    if (!termo) {
+      return this.clientes();
+    }
+    return this.clientes().filter(cliente => {
+      const nome = cliente.nome.toLowerCase();
+      const email = cliente.email?.toLowerCase() ?? '';
+      const telefone = cliente.telefone?.toLowerCase() ?? '';
+      return nome.includes(termo) || email.includes(termo) || telefone.includes(termo);
+    });
+  });
 
   formulario = {
     nome: '',
@@ -204,6 +252,10 @@ export class ClientesComponent {
     }
     return this.veiculos().filter(veiculo => veiculo.clienteId === this.clienteSelecionado()!.id);
   });
+
+  atualizarFiltro(valor: string) {
+    this.filtroBusca.set(valor);
+  }
 
   abrirFormularioNovo() {
     this.editandoId.set(null);
@@ -230,35 +282,45 @@ export class ClientesComponent {
     this.modoVisualizacao.set('detalhes');
   }
 
-  salvarCliente() {
+  async salvarCliente() {
     if (!this.formulario.nome || !this.formulario.email || !this.formulario.telefone) {
       return;
     }
 
     const dadosNormalizados = {
       nome: this.formulario.nome.trim(),
-      email: this.formulario.email.trim(),
-      telefone: this.formulario.telefone.trim(),
+      email: this.formulario.email.trim() || undefined,
+      telefone: this.formulario.telefone.trim() || undefined,
     };
 
-    if (this.editandoId()) {
-      const idParaAtualizar = this.editandoId()!;
-      this.dataService.clientes.update(lista =>
-        lista.map(item =>
-          item.id === idParaAtualizar
-            ? { ...item, ...dadosNormalizados }
-            : item,
-        ),
-      );
-    } else {
-      const novoId = this.dataService.clientes().reduce((max, cliente) => Math.max(max, cliente.id), 0) + 1;
-      this.dataService.clientes.update(lista => [
-        { id: novoId, ...dadosNormalizados },
-        ...lista,
-      ]);
+    try {
+      if (this.editandoId()) {
+        await this.dataService.atualizarCliente(this.editandoId()!, dadosNormalizados);
+      } else {
+        await this.dataService.criarCliente(dadosNormalizados);
+      }
+      this.voltarParaLista();
+    } catch (error) {
+      console.error('Erro ao salvar cliente', error);
+    }
+  }
+
+  async excluirCliente() {
+    if (!this.editandoId()) {
+      return;
     }
 
-    this.voltarParaLista();
+    const confirmar = window.confirm('Deseja realmente excluir este cliente? Os veículos e ordens associadas serão removidos.');
+    if (!confirmar) {
+      return;
+    }
+
+    try {
+      await this.dataService.excluirCliente(this.editandoId()!);
+      this.voltarParaLista();
+    } catch (error) {
+      console.error('Erro ao excluir cliente', error);
+    }
   }
 
   voltarParaLista() {

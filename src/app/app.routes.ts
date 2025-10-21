@@ -6,16 +6,17 @@ import { ResumoOsComponent } from './pages/resumo-os.component';
 import { VeiculosComponent } from './pages/veiculos.component';
 import { LoginComponent } from './pages/login.component';
 import { ClientesComponent } from './pages/clientes.component';
+import { authGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
     { path: 'login', component: LoginComponent },
-    { path: 'inicio', component: DashboardComponent },
-    { path: 'ordens-servico', component: OrdensServicoComponent },
-    { path: 'ordens-servico/:id', component: ResumoOsComponent },
-    { path: 'veiculos', component: VeiculosComponent },
-    { path: 'estoque', component: EstoqueComponent },
-    { path: 'clientes', component: ClientesComponent },
+    { path: 'inicio', component: DashboardComponent, canActivate: [authGuard] },
+    { path: 'ordens-servico', component: OrdensServicoComponent, canActivate: [authGuard] },
+    { path: 'ordens-servico/:id', component: ResumoOsComponent, canActivate: [authGuard] },
+    { path: 'veiculos', component: VeiculosComponent, canActivate: [authGuard] },
+    { path: 'estoque', component: EstoqueComponent, canActivate: [authGuard] },
+    { path: 'clientes', component: ClientesComponent, canActivate: [authGuard] },
 
-    { path: '', redirectTo: '/login', pathMatch: 'full' }, // Redireciona a raiz para a tela de login
-    { path: '**', redirectTo: '/login' } // Rota curinga para qualquer URL inválida
+    { path: '', redirectTo: '/login', pathMatch: 'full' },
+    { path: '**', redirectTo: '/login' }
 ];

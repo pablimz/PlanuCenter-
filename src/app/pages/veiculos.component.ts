@@ -1,4 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../core/services/data.service';
@@ -19,12 +20,25 @@ import { Veiculo } from '../core/models/models';
           </div>
 
           @if (modoVisualizacao() === 'lista') {
-            <button
-              class="w-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-500 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:from-emerald-300 hover:via-teal-300 hover:to-sky-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 md:w-auto"
-              (click)="abrirFormularioNovo()"
-            >
-              + Cadastrar veículo
-            </button>
+            <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+              <label class="relative flex w-full items-center sm:w-72">
+                <svg class="absolute left-4 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35M18 10.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
+                <input
+                  type="search"
+                  class="w-full rounded-full border border-white/10 bg-slate-900/60 py-2 pl-11 pr-4 text-sm text-slate-100 placeholder:text-slate-400 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+                  placeholder="Buscar por placa, modelo ou cliente"
+                  [ngModel]="filtroBusca()"
+                  (ngModelChange)="atualizarFiltro($event)"
+                />
+              </label>
+
+              <button
+                class="w-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-500 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:from-emerald-300 hover:via-teal-300 hover:to-sky-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 sm:w-auto"
+                (click)="abrirFormularioNovo()"
+              >
+                + Cadastrar veículo
+              </button>
+            </div>
           } @else {
             <button
               class="w-full rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-100 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 md:w-auto"
@@ -50,23 +64,29 @@ import { Veiculo } from '../core/models/models';
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-white/5 text-sm">
-                  @for (veiculo of veiculos(); track veiculo.id) {
-                    <tr class="transition hover:bg-white/5">
-                      <td class="px-6 py-4 font-medium text-white">{{ veiculo.placa }}</td>
-                      <td class="px-6 py-4 text-slate-200">{{ veiculo.marca }}</td>
-                      <td class="px-6 py-4 text-slate-200">{{ veiculo.modelo }}</td>
-                      <td class="px-6 py-4 text-slate-200">{{ veiculo.ano }}</td>
-                      <td class="px-6 py-4 text-slate-200">{{ veiculo.clienteNome }}</td>
-                      <td class="px-6 py-4 text-center">
-                        <div class="flex justify-center gap-2">
-                          <button
-                            class="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-white/20"
-                            (click)="editarVeiculo(veiculo)"
-                          >
-                            Editar
-                          </button>
-                        </div>
-                      </td>
+                  @if (veiculosFiltrados().length) {
+                    @for (veiculo of veiculosFiltrados(); track veiculo.id) {
+                      <tr class="transition hover:bg-white/5">
+                        <td class="px-6 py-4 font-medium text-white">{{ veiculo.placa }}</td>
+                        <td class="px-6 py-4 text-slate-200">{{ veiculo.marca }}</td>
+                        <td class="px-6 py-4 text-slate-200">{{ veiculo.modelo }}</td>
+                        <td class="px-6 py-4 text-slate-200">{{ veiculo.ano }}</td>
+                        <td class="px-6 py-4 text-slate-200">{{ veiculo.clienteNome }}</td>
+                        <td class="px-6 py-4 text-center">
+                          <div class="flex justify-center gap-2">
+                            <button
+                              class="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-white/20"
+                              (click)="editarVeiculo(veiculo)"
+                            >
+                              Editar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  } @else {
+                    <tr>
+                      <td colspan="6" class="px-6 py-6 text-center text-sm text-slate-300">Nenhum veículo encontrado.</td>
                     </tr>
                   }
                 </tbody>
@@ -141,6 +161,15 @@ import { Veiculo } from '../core/models/models';
               >
                 Cancelar
               </button>
+              @if (editandoId()) {
+                <button
+                  type="button"
+                  class="rounded-full border border-rose-400/60 bg-rose-500/10 px-5 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20"
+                  (click)="excluirVeiculo()"
+                >
+                  Excluir veículo
+                </button>
+              }
               <button
                 type="submit"
                 class="rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-950/40 transition hover:from-sky-400 hover:to-indigo-400"
@@ -162,6 +191,20 @@ export class VeiculosComponent {
 
   modoVisualizacao = signal<'lista' | 'formulario'>('lista');
   editandoId = signal<number | null>(null);
+  filtroBusca = signal('');
+
+  veiculosFiltrados = computed(() => {
+    const termo = this.filtroBusca().trim().toLowerCase();
+    if (!termo) {
+      return this.veiculos();
+    }
+    return this.veiculos().filter(veiculo => {
+      const placa = veiculo.placa.toLowerCase();
+      const modelo = `${veiculo.marca} ${veiculo.modelo}`.toLowerCase();
+      const cliente = veiculo.clienteNome.toLowerCase();
+      return placa.includes(termo) || modelo.includes(termo) || cliente.includes(termo);
+    });
+  });
 
   formulario = {
     placa: '',
@@ -170,6 +213,10 @@ export class VeiculosComponent {
     ano: '',
     clienteId: undefined as number | undefined,
   };
+
+  atualizarFiltro(valor: string) {
+    this.filtroBusca.set(valor);
+  }
 
   abrirFormularioNovo() {
     this.editandoId.set(null);
@@ -195,7 +242,7 @@ export class VeiculosComponent {
     this.modoVisualizacao.set('formulario');
   }
 
-  salvarVeiculo() {
+  async salvarVeiculo() {
     if (!this.formulario.placa || !this.formulario.marca || !this.formulario.modelo || !this.formulario.ano || !this.formulario.clienteId) {
       return;
     }
@@ -205,40 +252,24 @@ export class VeiculosComponent {
       return;
     }
 
-    if (this.editandoId()) {
-      const idParaAtualizar = this.editandoId()!;
-      this.dataService.veiculos.update(lista =>
-        lista.map(item =>
-          item.id === idParaAtualizar
-            ? {
-                ...item,
-                placa: this.formulario.placa,
-                marca: this.formulario.marca,
-                modelo: this.formulario.modelo,
-                ano: this.formulario.ano,
-                clienteId: cliente.id,
-                clienteNome: cliente.nome,
-              }
-            : item,
-        ),
-      );
-    } else {
-      const novoId = this.dataService.veiculos().reduce((max, v) => Math.max(max, v.id), 0) + 1;
-      this.dataService.veiculos.update(lista => [
-        {
-          id: novoId,
-          placa: this.formulario.placa,
-          marca: this.formulario.marca,
-          modelo: this.formulario.modelo,
-          ano: this.formulario.ano,
-          clienteId: cliente.id,
-          clienteNome: cliente.nome,
-        },
-        ...lista,
-      ]);
-    }
+    const dados = {
+      placa: this.formulario.placa.trim(),
+      marca: this.formulario.marca.trim(),
+      modelo: this.formulario.modelo.trim(),
+      ano: this.formulario.ano.trim(),
+      clienteId: cliente.id,
+    };
 
-    this.voltarParaLista();
+    try {
+      if (this.editandoId()) {
+        await this.dataService.atualizarVeiculo(this.editandoId()!, dados);
+      } else {
+        await this.dataService.criarVeiculo(dados);
+      }
+      this.voltarParaLista();
+    } catch (error) {
+      console.error('Erro ao salvar veículo', error);
+    }
   }
 
   private obterClienteSelecionado() {
@@ -251,5 +282,24 @@ export class VeiculosComponent {
   voltarParaLista() {
     this.modoVisualizacao.set('lista');
     this.editandoId.set(null);
+  }
+
+  async excluirVeiculo() {
+    const id = this.editandoId();
+    if (!id) {
+      return;
+    }
+
+    const confirmar = window.confirm('Deseja realmente excluir este veículo? Ordens associadas serão removidas.');
+    if (!confirmar) {
+      return;
+    }
+
+    try {
+      await this.dataService.excluirVeiculo(id);
+      this.voltarParaLista();
+    } catch (error) {
+      console.error('Erro ao excluir veículo', error);
+    }
   }
 }

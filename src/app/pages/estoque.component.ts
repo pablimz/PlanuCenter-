@@ -1,4 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
+
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../core/services/data.service';
@@ -19,12 +20,25 @@ import { Peca } from '../core/models/models';
           </div>
 
           @if (modoVisualizacao() === 'lista') {
-            <button
-              class="w-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-500 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:from-emerald-300 hover:via-teal-300 hover:to-sky-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 md:w-auto"
-              (click)="abrirFormularioNovo()"
-            >
-              + Adicionar peça
-            </button>
+            <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+              <label class="relative flex w-full items-center sm:w-72">
+                <svg class="absolute left-4 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35M18 10.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
+                <input
+                  type="search"
+                  class="w-full rounded-full border border-white/10 bg-slate-900/60 py-2 pl-11 pr-4 text-sm text-slate-100 placeholder:text-slate-400 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+                  placeholder="Buscar por código ou nome da peça"
+                  [ngModel]="filtroBusca()"
+                  (ngModelChange)="atualizarFiltro($event)"
+                />
+              </label>
+
+              <button
+                class="w-full rounded-full bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-500 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/30 transition hover:from-emerald-300 hover:via-teal-300 hover:to-sky-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 sm:w-auto"
+                (click)="abrirFormularioNovo()"
+              >
+                + Adicionar peça
+              </button>
+            </div>
           } @else {
             <button
               class="w-full rounded-full border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-slate-100 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/20 md:w-auto"
@@ -49,22 +63,28 @@ import { Peca } from '../core/models/models';
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-white/5 text-sm">
-                  @for (peca of pecas(); track peca.id) {
-                    <tr class="transition hover:bg-white/5">
-                      <td class="px-6 py-4 font-medium text-white">{{ peca.codigo }}</td>
-                      <td class="px-6 py-4 text-slate-200">{{ peca.nome }}</td>
-                      <td class="px-6 py-4 text-center text-slate-200">{{ peca.estoque }}</td>
-                      <td class="px-6 py-4 text-right text-slate-200">{{ peca.preco | currency:'BRL' }}</td>
-                      <td class="px-6 py-4 text-center">
-                        <div class="flex justify-center gap-2">
-                          <button
-                            class="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-white/20"
-                            (click)="editarPeca(peca)"
-                          >
-                            Editar
-                          </button>
-                        </div>
-                      </td>
+                  @if (pecasFiltradas().length) {
+                    @for (peca of pecasFiltradas(); track peca.id) {
+                      <tr class="transition hover:bg-white/5">
+                        <td class="px-6 py-4 font-medium text-white">{{ peca.codigo }}</td>
+                        <td class="px-6 py-4 text-slate-200">{{ peca.nome }}</td>
+                        <td class="px-6 py-4 text-center text-slate-200">{{ peca.estoque }}</td>
+                        <td class="px-6 py-4 text-right text-slate-200">{{ peca.preco | currency:'BRL' }}</td>
+                        <td class="px-6 py-4 text-center">
+                          <div class="flex justify-center gap-2">
+                            <button
+                              class="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-white/20"
+                              (click)="editarPeca(peca)"
+                            >
+                              Editar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    }
+                  } @else {
+                    <tr>
+                      <td colspan="5" class="px-6 py-6 text-center text-sm text-slate-300">Nenhuma peça encontrada.</td>
                     </tr>
                   }
                 </tbody>
@@ -128,6 +148,15 @@ import { Peca } from '../core/models/models';
               >
                 Cancelar
               </button>
+              @if (editandoId()) {
+                <button
+                  type="button"
+                  class="rounded-full border border-rose-400/60 bg-rose-500/10 px-5 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20"
+                  (click)="excluirPeca()"
+                >
+                  Excluir peça
+                </button>
+              }
               <button
                 type="submit"
                 class="rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-950/40 transition hover:from-sky-400 hover:to-indigo-400"
@@ -148,6 +177,19 @@ export class EstoqueComponent {
 
   modoVisualizacao = signal<'lista' | 'formulario'>('lista');
   editandoId = signal<number | null>(null);
+  filtroBusca = signal('');
+
+  pecasFiltradas = computed(() => {
+    const termo = this.filtroBusca().trim().toLowerCase();
+    if (!termo) {
+      return this.pecas();
+    }
+    return this.pecas().filter(peca => {
+      const codigo = peca.codigo.toLowerCase();
+      const nome = peca.nome.toLowerCase();
+      return codigo.includes(termo) || nome.includes(termo);
+    });
+  });
 
   formulario = {
     codigo: '',
@@ -155,6 +197,10 @@ export class EstoqueComponent {
     estoque: 0,
     preco: 0,
   };
+
+  atualizarFiltro(valor: string) {
+    this.filtroBusca.set(valor);
+  }
 
   abrirFormularioNovo() {
     this.editandoId.set(null);
@@ -178,45 +224,51 @@ export class EstoqueComponent {
     this.modoVisualizacao.set('formulario');
   }
 
-  salvarPeca() {
+  async salvarPeca() {
     if (!this.formulario.codigo || !this.formulario.nome) {
       return;
     }
 
-    if (this.editandoId()) {
-      const idParaAtualizar = this.editandoId()!;
-      this.dataService.pecas.update(lista =>
-        lista.map(item =>
-          item.id === idParaAtualizar
-            ? {
-                ...item,
-                codigo: this.formulario.codigo,
-                nome: this.formulario.nome,
-                estoque: Number(this.formulario.estoque),
-                preco: Number(this.formulario.preco),
-              }
-            : item,
-        ),
-      );
-    } else {
-      const novoId = this.dataService.pecas().reduce((max, peca) => Math.max(max, peca.id), 0) + 1;
-      this.dataService.pecas.update(lista => [
-        {
-          id: novoId,
-          codigo: this.formulario.codigo,
-          nome: this.formulario.nome,
-          estoque: Number(this.formulario.estoque),
-          preco: Number(this.formulario.preco),
-        },
-        ...lista,
-      ]);
-    }
+    const dados = {
+      codigo: this.formulario.codigo.trim(),
+      nome: this.formulario.nome.trim(),
+      estoque: Number(this.formulario.estoque),
+      preco: Number(this.formulario.preco),
+    };
 
-    this.voltarParaLista();
+    try {
+      if (this.editandoId()) {
+        await this.dataService.atualizarPeca(this.editandoId()!, dados);
+      } else {
+        await this.dataService.criarPeca(dados);
+      }
+      this.voltarParaLista();
+    } catch (error) {
+      console.error('Erro ao salvar peça', error);
+    }
   }
 
   voltarParaLista() {
     this.modoVisualizacao.set('lista');
     this.editandoId.set(null);
+  }
+
+  async excluirPeca() {
+    const id = this.editandoId();
+    if (!id) {
+      return;
+    }
+
+    const confirmar = window.confirm('Deseja realmente excluir esta peça? Ela será removida das ordens de serviço.');
+    if (!confirmar) {
+      return;
+    }
+
+    try {
+      await this.dataService.excluirPeca(id);
+      this.voltarParaLista();
+    } catch (error) {
+      console.error('Erro ao excluir peça', error);
+    }
   }
 }
