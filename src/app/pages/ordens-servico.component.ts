@@ -4,27 +4,33 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { DataService } from '../core/services/data.service';
-import { OrdemServico } from '../core/models/models';
+import { AutocompleteCriavelComponent, AutocompleteOption, AutocompleteValue } from '../core/components/autocomplete-criavel.component';
+import { Cliente, OrdemServico, OrdemServicoPayload, Peca, Servico, Veiculo } from '../core/models/models';
 
-interface ItemSelecionado {
-  id: number | undefined;
+type StatusOrdem = OrdemServico['status'];
+
+type SelecaoCriavel<T = unknown> = AutocompleteValue<T>;
+
+interface ItemFormulario<T = unknown> {
+  selecao: SelecaoCriavel<T>;
   qtde: number;
+  valorUnitario: number;
 }
 
 interface FormularioOrdem {
-  clienteId: number | undefined;
-  veiculoId: number | undefined;
+  cliente: SelecaoCriavel<Cliente>;
+  veiculo: SelecaoCriavel<Veiculo>;
   dataEntrada: string;
-  status: 'Em Andamento' | 'Aguardando Aprovação' | 'Finalizada' | 'Cancelada' | undefined;
+  status: SelecaoCriavel<{ valor: StatusOrdem }>;
   observacoes: string;
-  servicos: ItemSelecionado[];
-  pecas: ItemSelecionado[];
+  servicos: ItemFormulario<Servico>[];
+  pecas: ItemFormulario<Peca>[];
 }
 
 @Component({
   selector: 'app-ordens-servico',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, AutocompleteCriavelComponent],
   template: `
     <section class="rounded-3xl border border-white/10 bg-slate-900/50 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur sm:p-8">
       <div class="flex flex-col gap-6">
@@ -110,7 +116,7 @@ interface FormularioOrdem {
                             </button>
                             <button
                               class="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-white/20"
-                              (click)="editarOrdem(item.ordem)"
+                              (click)="editarOrdem(item.ordem.id)"
                             >
                               Editar
                             </button>
@@ -173,33 +179,27 @@ interface FormularioOrdem {
             <form class="grid gap-5 md:grid-cols-2" (ngSubmit)="salvarOrdem()">
               <label class="flex flex-col text-sm text-slate-200">
                 Cliente
-                <select
-                  class="mt-2 rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                  [(ngModel)]="formularioOrdem.clienteId"
-                  (ngModelChange)="aoAlterarCliente($event)"
-                  name="clienteId"
-                  required
-                >
-                  <option [ngValue]="undefined" disabled>Selecione um cliente</option>
-                  @for (cliente of clientes(); track cliente.id) {
-                    <option class="bg-slate-900" [ngValue]="cliente.id">{{ cliente.nome }}</option>
-                  }
-                </select>
+                <div class="mt-2">
+                  <app-autocomplete-criavel
+                    name="cliente"
+                    [options]="opcoesClientes()"
+                    [(ngModel)]="formularioOrdem.cliente"
+                    (ngModelChange)="aoAlterarCliente($event)"
+                    placeholder="Selecione ou cadastre um cliente"
+                  ></app-autocomplete-criavel>
+                </div>
               </label>
 
               <label class="flex flex-col text-sm text-slate-200">
                 Veículo
-                <select
-                  class="mt-2 rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                  [(ngModel)]="formularioOrdem.veiculoId"
-                  name="veiculoId"
-                  required
-                >
-                  <option [ngValue]="undefined" disabled>Selecione um veículo</option>
-                  @for (veiculo of veiculosDisponiveis(); track veiculo?.id) {
-                    <option class="bg-slate-900" [ngValue]="veiculo?.id">{{ veiculo?.placa }} - {{ veiculo?.marca }} {{ veiculo?.modelo }}</option>
-                  }
-                </select>
+                <div class="mt-2">
+                  <app-autocomplete-criavel
+                    name="veiculo"
+                    [options]="opcoesVeiculosDisponiveis()"
+                    [(ngModel)]="formularioOrdem.veiculo"
+                    placeholder="Informe ou crie um veículo"
+                  ></app-autocomplete-criavel>
+                </div>
               </label>
 
               <label class="flex flex-col text-sm text-slate-200">
@@ -215,18 +215,15 @@ interface FormularioOrdem {
 
               <label class="flex flex-col text-sm text-slate-200">
                 Status
-                <select
-                  class="mt-2 rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                  [(ngModel)]="formularioOrdem.status"
-                  name="status"
-                  required
-                >
-                  <option [ngValue]="undefined" disabled>Selecione</option>
-                  <option class="bg-slate-900" value="Em Andamento">Em andamento</option>
-                  <option class="bg-slate-900" value="Aguardando Aprovação">Aguardando aprovação</option>
-                  <option class="bg-slate-900" value="Finalizada">Finalizada</option>
-                  <option class="bg-slate-900" value="Cancelada">Cancelada</option>
-                </select>
+                <div class="mt-2">
+                  <app-autocomplete-criavel
+                    name="status"
+                    [options]="statusOptions"
+                    [allowCustom]="false"
+                    [(ngModel)]="formularioOrdem.status"
+                    placeholder="Selecione um status"
+                  ></app-autocomplete-criavel>
+                </div>
               </label>
 
               <label class="md:col-span-2 flex flex-col text-sm text-slate-200">
@@ -251,19 +248,16 @@ interface FormularioOrdem {
                 @if (formularioOrdem.servicos.length) {
                   <div class="space-y-3">
                     @for (item of formularioOrdem.servicos; track $index; let index = $index) {
-                      <div class="grid gap-3 rounded-2xl bg-slate-900/40 p-4 sm:grid-cols-[minmax(0,1fr)_120px_40px] sm:items-end">
+                      <div class="grid gap-3 rounded-2xl bg-slate-900/40 p-4 sm:grid-cols-[minmax(0,1fr)_120px_140px_40px] sm:items-end">
                         <label class="flex flex-col text-sm text-slate-200 sm:col-span-1">
                           <span class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Serviço</span>
-                          <select
-                            class="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                            [ngModel]="item.id"
+                          <app-autocomplete-criavel
+                            [name]="'servico-' + index"
+                            [options]="opcoesServicos()"
+                            [ngModel]="item.selecao"
                             (ngModelChange)="atualizarServicoSelecionado(index, $event)"
-                          >
-                            <option [ngValue]="undefined" disabled>Selecione</option>
-                            @for (servico of servicos(); track servico.id) {
-                              <option class="bg-slate-900" [ngValue]="servico.id">{{ servico.descricao }} — {{ servico.preco | currency:'BRL' }}</option>
-                            }
-                          </select>
+                            placeholder="Digite ou selecione um serviço"
+                          ></app-autocomplete-criavel>
                         </label>
 
                         <label class="flex flex-col text-sm text-slate-200">
@@ -274,6 +268,18 @@ interface FormularioOrdem {
                             class="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
                             [ngModel]="item.qtde"
                             (ngModelChange)="atualizarQuantidadeServico(index, $event)"
+                          />
+                        </label>
+
+                        <label class="flex flex-col text-sm text-slate-200">
+                          <span class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Valor unitário</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            class="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+                            [ngModel]="item.valorUnitario"
+                            (ngModelChange)="atualizarValorServico(index, $event)"
                           />
                         </label>
 
@@ -299,19 +305,16 @@ interface FormularioOrdem {
                 @if (formularioOrdem.pecas.length) {
                   <div class="space-y-3">
                     @for (item of formularioOrdem.pecas; track $index; let index = $index) {
-                      <div class="grid gap-3 rounded-2xl bg-slate-900/40 p-4 sm:grid-cols-[minmax(0,1fr)_120px_40px] sm:items-end">
+                      <div class="grid gap-3 rounded-2xl bg-slate-900/40 p-4 sm:grid-cols-[minmax(0,1fr)_120px_140px_40px] sm:items-end">
                         <label class="flex flex-col text-sm text-slate-200 sm:col-span-1">
                           <span class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Peça</span>
-                          <select
-                            class="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                            [ngModel]="item.id"
+                          <app-autocomplete-criavel
+                            [name]="'peca-' + index"
+                            [options]="opcoesPecas()"
+                            [ngModel]="item.selecao"
                             (ngModelChange)="atualizarPecaSelecionada(index, $event)"
-                          >
-                            <option [ngValue]="undefined" disabled>Selecione</option>
-                            @for (peca of pecas(); track peca.id) {
-                              <option class="bg-slate-900" [ngValue]="peca.id">{{ peca.nome }} — {{ peca.preco | currency:'BRL' }}</option>
-                            }
-                          </select>
+                            placeholder="Digite ou selecione uma peça"
+                          ></app-autocomplete-criavel>
                         </label>
 
                         <label class="flex flex-col text-sm text-slate-200">
@@ -322,6 +325,18 @@ interface FormularioOrdem {
                             class="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
                             [ngModel]="item.qtde"
                             (ngModelChange)="atualizarQuantidadePeca(index, $event)"
+                          />
+                        </label>
+
+                        <label class="flex flex-col text-sm text-slate-200">
+                          <span class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Valor unitário</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            class="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+                            [ngModel]="item.valorUnitario"
+                            (ngModelChange)="atualizarValorPeca(index, $event)"
                           />
                         </label>
 
@@ -371,7 +386,7 @@ interface FormularioOrdem {
                 <p class="text-sm text-slate-300/80">Panorama completo de serviços, peças e valores aplicados.</p>
               </div>
               <div class="flex flex-wrap gap-2">
-                <button class="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:bg-white/20" (click)="editarOrdem(detalhes.ordem)">
+                <button class="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:bg-white/20" (click)="editarOrdem(detalhes.ordem.id)">
                   Editar ordem
                 </button>
                 <button class="rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-4 py-2 text-xs font-semibold text-white shadow shadow-slate-950/40 transition hover:from-sky-400 hover:to-indigo-400" (click)="abrirResumoCompleto()">
@@ -486,6 +501,15 @@ export class OrdensServicoComponent {
   editandoId = signal<number | null>(null);
 
   formularioOrdem: FormularioOrdem = this.criarFormularioInicial();
+
+  statusOptions: AutocompleteOption<{ valor: StatusOrdem }>[] = [
+    { id: 'Em Andamento', label: 'Em Andamento', data: { valor: 'Em Andamento' } },
+    { id: 'Aguardando Aprovação', label: 'Aguardando Aprovação', data: { valor: 'Aguardando Aprovação' } },
+    { id: 'Finalizada', label: 'Finalizada', data: { valor: 'Finalizada' } },
+    { id: 'Cancelada', label: 'Cancelada', data: { valor: 'Cancelada' } },
+  ];
+
+  private currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
   ordensDetalhadas = computed(() => {
     const ordens = this.ordensServico();
@@ -602,19 +626,19 @@ export class OrdensServicoComponent {
     this.ordemSelecionadaId.set(null);
   }
 
-  editarOrdem(ordem: OrdemServico) {
-    this.editandoId.set(ordem.id);
-    this.formularioOrdem = {
-      clienteId: ordem.clienteId,
-      veiculoId: ordem.veiculoId,
-      dataEntrada: ordem.dataEntrada,
-      status: ordem.status,
-      observacoes: ordem.observacoes || '',
-      servicos: ordem.servicos.length ? ordem.servicos.map(item => ({ id: item.id, qtde: item.qtde })) : [this.criarItemSelecionado()],
-      pecas: ordem.pecas.length ? ordem.pecas.map(item => ({ id: item.id, qtde: item.qtde })) : [],
-    };
-    this.modoVisualizacao.set('formulario');
-    this.ordemSelecionadaId.set(null);
+  async editarOrdem(id: number) {
+    try {
+      const ordem = await this.dataService.obterOrdemServicoDetalhado(id);
+      if (!ordem) {
+        return;
+      }
+      this.editandoId.set(ordem.id);
+      this.formularioOrdem = this.criarFormularioAPartirDaOrdem(ordem);
+      this.modoVisualizacao.set('formulario');
+      this.ordemSelecionadaId.set(null);
+    } catch (error) {
+      console.error('Erro ao carregar ordem para edição', error);
+    }
   }
 
   verResumo(id: number) {
@@ -629,33 +653,60 @@ export class OrdensServicoComponent {
     this.editandoId.set(null);
   }
 
-  aoAlterarCliente(clienteId: number | undefined) {
-    const veiculosValidos = clienteId
-      ? this.veiculos().filter(veiculo => veiculo.clienteId === clienteId)
-      : this.veiculos();
-    const veiculoAtual = this.formularioOrdem.veiculoId;
-    const veiculoValido = veiculosValidos.some(veiculo => veiculo.id === veiculoAtual)
-      ? veiculoAtual
-      : undefined;
-    this.formularioOrdem = { ...this.formularioOrdem, clienteId, veiculoId: veiculoValido };
+  aoAlterarCliente(selecao: SelecaoCriavel<Cliente>) {
+    const clienteId = this.obterIdNumero(selecao);
+    const veiculoAtual = this.formularioOrdem.veiculo;
+    const veiculoAjustado = clienteId
+      ? veiculoAtual && this.veiculos().some(veiculo => veiculo.id === veiculoAtual?.id && veiculo.clienteId === clienteId)
+        ? veiculoAtual
+        : null
+      : null;
+    this.formularioOrdem = { ...this.formularioOrdem, cliente: selecao, veiculo: veiculoAjustado };
   }
 
-  veiculosDisponiveis() {
-    if (!this.formularioOrdem.clienteId) {
-      return this.veiculos();
-    }
-    return this.veiculos().filter(veiculo => veiculo.clienteId === this.formularioOrdem.clienteId);
+  opcoesClientes(): AutocompleteOption<Cliente>[] {
+    return this.clientes().map(cliente => ({ id: cliente.id, label: cliente.nome, data: cliente }));
+  }
+
+  opcoesVeiculosDisponiveis(): AutocompleteOption<Veiculo>[] {
+    const clienteId = this.obterIdNumero(this.formularioOrdem.cliente);
+    const lista = clienteId ? this.veiculos().filter(veiculo => veiculo.clienteId === clienteId) : this.veiculos();
+    return lista.map(veiculo => ({
+      id: veiculo.id,
+      label: `${veiculo.placa} - ${veiculo.marca} ${veiculo.modelo}`.trim(),
+      data: veiculo,
+    }));
+  }
+
+  opcoesServicos(): AutocompleteOption<Servico>[] {
+    return this.servicos().map(servico => ({
+      id: servico.id,
+      label: this.formatarServicoLabel(servico),
+      data: servico,
+    }));
+  }
+
+  opcoesPecas(): AutocompleteOption<Peca>[] {
+    return this.pecas().map(peca => ({
+      id: peca.id,
+      label: this.formatarPecaLabel(peca),
+      data: peca,
+    }));
   }
 
   adicionarServico() {
-    const servicos = [...this.formularioOrdem.servicos, this.criarItemSelecionado()];
+    const servicos = [...this.formularioOrdem.servicos, this.criarItemFormulario<Servico>()];
     this.formularioOrdem = { ...this.formularioOrdem, servicos };
   }
 
-  atualizarServicoSelecionado(index: number, id: number | undefined) {
-    const servicos = this.formularioOrdem.servicos.map((item, idx) =>
-      idx === index ? { ...item, id } : item
-    );
+  atualizarServicoSelecionado(index: number, selecao: SelecaoCriavel<Servico>) {
+    const servicos = this.formularioOrdem.servicos.map((item, idx) => {
+      if (idx !== index) {
+        return item;
+      }
+      const valorUnitario = selecao?.data?.preco ?? item.valorUnitario;
+      return { ...item, selecao, valorUnitario };
+    });
     this.formularioOrdem = { ...this.formularioOrdem, servicos };
   }
 
@@ -667,20 +718,32 @@ export class OrdensServicoComponent {
     this.formularioOrdem = { ...this.formularioOrdem, servicos };
   }
 
-  removerServico(index: number) {
-    const servicos = this.formularioOrdem.servicos.filter((_, idx) => idx !== index);
+  atualizarValorServico(index: number, valor: number) {
+    const unitario = Math.max(0, Number(valor) || 0);
+    const servicos = this.formularioOrdem.servicos.map((item, idx) =>
+      idx === index ? { ...item, valorUnitario: unitario } : item
+    );
     this.formularioOrdem = { ...this.formularioOrdem, servicos };
   }
 
+  removerServico(index: number) {
+    const servicos = this.formularioOrdem.servicos.filter((_, idx) => idx !== index);
+    this.formularioOrdem = { ...this.formularioOrdem, servicos: servicos.length ? servicos : [this.criarItemFormulario<Servico>()] };
+  }
+
   adicionarPeca() {
-    const pecas = [...this.formularioOrdem.pecas, this.criarItemSelecionado()];
+    const pecas = [...this.formularioOrdem.pecas, this.criarItemFormulario<Peca>()];
     this.formularioOrdem = { ...this.formularioOrdem, pecas };
   }
 
-  atualizarPecaSelecionada(index: number, id: number | undefined) {
-    const pecas = this.formularioOrdem.pecas.map((item, idx) =>
-      idx === index ? { ...item, id } : item
-    );
+  atualizarPecaSelecionada(index: number, selecao: SelecaoCriavel<Peca>) {
+    const pecas = this.formularioOrdem.pecas.map((item, idx) => {
+      if (idx !== index) {
+        return item;
+      }
+      const valorUnitario = selecao?.data?.preco ?? item.valorUnitario;
+      return { ...item, selecao, valorUnitario };
+    });
     this.formularioOrdem = { ...this.formularioOrdem, pecas };
   }
 
@@ -692,6 +755,14 @@ export class OrdensServicoComponent {
     this.formularioOrdem = { ...this.formularioOrdem, pecas };
   }
 
+  atualizarValorPeca(index: number, valor: number) {
+    const unitario = Math.max(0, Number(valor) || 0);
+    const pecas = this.formularioOrdem.pecas.map((item, idx) =>
+      idx === index ? { ...item, valorUnitario: unitario } : item
+    );
+    this.formularioOrdem = { ...this.formularioOrdem, pecas };
+  }
+
   removerPeca(index: number) {
     const pecas = this.formularioOrdem.pecas.filter((_, idx) => idx !== index);
     this.formularioOrdem = { ...this.formularioOrdem, pecas };
@@ -699,21 +770,17 @@ export class OrdensServicoComponent {
 
   calcularTotalServicosSelecionados() {
     return this.formularioOrdem.servicos.reduce((total, item) => {
-      if (!item.id) {
-        return total;
-      }
-      const servico = this.servicos().find(serv => serv.id === item.id);
-      return total + (servico?.preco ?? 0) * item.qtde;
+      const valor = Math.max(0, Number(item.valorUnitario) || 0);
+      const qtde = Math.max(1, Number(item.qtde) || 1);
+      return total + valor * qtde;
     }, 0);
   }
 
   calcularTotalPecasSelecionadas() {
     return this.formularioOrdem.pecas.reduce((total, item) => {
-      if (!item.id) {
-        return total;
-      }
-      const peca = this.pecas().find(prod => prod.id === item.id);
-      return total + (peca?.preco ?? 0) * item.qtde;
+      const valor = Math.max(0, Number(item.valorUnitario) || 0);
+      const qtde = Math.max(1, Number(item.qtde) || 1);
+      return total + valor * qtde;
     }, 0);
   }
 
@@ -722,38 +789,61 @@ export class OrdensServicoComponent {
   }
 
   async salvarOrdem() {
+    const clienteSelecao = this.formularioOrdem.cliente;
+    const veiculoSelecao = this.formularioOrdem.veiculo;
+    const statusSelecao = this.formularioOrdem.status;
     if (
-      !this.formularioOrdem.clienteId ||
-      !this.formularioOrdem.veiculoId ||
+      !clienteSelecao ||
+      !clienteSelecao.label?.trim() ||
+      !veiculoSelecao ||
+      !veiculoSelecao.label?.trim() ||
       !this.formularioOrdem.dataEntrada ||
-      !this.formularioOrdem.status
+      !statusSelecao
     ) {
       return;
     }
 
+    const statusValor = statusSelecao.data?.valor ?? (statusSelecao.label as StatusOrdem | undefined);
+    if (!statusValor) {
+      return;
+    }
+
     const servicos = this.formularioOrdem.servicos
-      .filter(item => item.id && item.qtde > 0)
-      .map(item => ({ id: item.id!, qtde: item.qtde }));
+      .filter(item => item.selecao && item.selecao.label?.trim() && item.qtde > 0)
+      .map(item => ({
+        id: this.obterIdNumero(item.selecao),
+        descricao: item.selecao!.data?.descricao ?? item.selecao!.label.trim(),
+        preco: Math.max(0, Number(item.valorUnitario) || 0),
+        qtde: Math.max(1, Number(item.qtde) || 1),
+      }));
 
     const pecas = this.formularioOrdem.pecas
-      .filter(item => item.id && item.qtde > 0)
-      .map(item => ({ id: item.id!, qtde: item.qtde }));
+      .filter(item => item.selecao && item.selecao.label?.trim() && item.qtde > 0)
+      .map(item => ({
+        id: this.obterIdNumero(item.selecao),
+        nome: item.selecao!.data?.nome ?? item.selecao!.label.trim(),
+        preco: Math.max(0, Number(item.valorUnitario) || 0),
+        qtde: Math.max(1, Number(item.qtde) || 1),
+      }));
 
-    const dados = {
-      clienteId: this.formularioOrdem.clienteId,
-      veiculoId: this.formularioOrdem.veiculoId,
+    const payload: OrdemServicoPayload = {
+      cliente: {
+        id: this.obterIdNumero(clienteSelecao),
+        nome: clienteSelecao.label.trim(),
+      },
+      veiculo: this.montarDadosVeiculo(veiculoSelecao),
       dataEntrada: this.formularioOrdem.dataEntrada,
-      status: this.formularioOrdem.status!,
+      status: statusValor,
+      observacoes: this.formularioOrdem.observacoes.trim() || undefined,
       servicos,
       pecas,
-      observacoes: this.formularioOrdem.observacoes.trim() || undefined,
     };
 
     try {
       if (this.editandoId()) {
-        await this.dataService.atualizarOrdemServico(this.editandoId()!, dados);
+        await this.dataService.atualizarOrdemServico(this.editandoId()!, payload);
       } else {
-        await this.dataService.criarOrdemServico(dados);
+        await this.dataService.criarOrdemServico(payload);
       }
       this.voltarParaLista();
     } catch (error) {
@@ -791,17 +881,109 @@ export class OrdensServicoComponent {
   private criarFormularioInicial(): FormularioOrdem {
     const hoje = new Date().toISOString().split('T')[0];
     return {
-      clienteId: undefined,
-      veiculoId: undefined,
+      cliente: null,
+      veiculo: null,
       dataEntrada: hoje,
-      status: undefined,
+      status: null,
       observacoes: '',
-      servicos: [this.criarItemSelecionado()],
+      servicos: [this.criarItemFormulario<Servico>()],
       pecas: [],
     };
   }
 
-  private criarItemSelecionado(): ItemSelecionado {
-    return { id: undefined, qtde: 1 };
+  private criarItemFormulario<T>(): ItemFormulario<T> {
+    return { selecao: null, qtde: 1, valorUnitario: 0 };
+  }
+
+  private criarFormularioAPartirDaOrdem(ordem: OrdemServico): FormularioOrdem {
+    const cliente = this.clientes().find(item => item.id === ordem.clienteId);
+    const veiculo = this.veiculos().find(item => item.id === ordem.veiculoId);
+    const clienteSelecao: SelecaoCriavel<Cliente> = cliente
+      ? { id: cliente.id, label: cliente.nome, data: cliente }
+      : { id: ordem.clienteId, label: `Cliente #${ordem.clienteId}` };
+    const veiculoSelecao: SelecaoCriavel<Veiculo> = veiculo
+      ? { id: veiculo.id, label: `${veiculo.placa} - ${veiculo.marca} ${veiculo.modelo}`.trim(), data: veiculo }
+      : { id: ordem.veiculoId, label: `Veículo #${ordem.veiculoId}` };
+    const statusSelecao = this.statusOptions.find(opcao => opcao.data?.valor === ordem.status) ?? {
+      id: ordem.status,
+      label: ordem.status,
+      data: { valor: ordem.status },
+    };
+
+    const servicos = ordem.servicos.length
+      ? ordem.servicos.map(item => {
+          const servico = this.servicos().find(serv => serv.id === item.id);
+          const selecao: SelecaoCriavel<Servico> = servico
+            ? { id: servico.id, label: this.formatarServicoLabel(servico), data: servico }
+            : { id: item.id, label: `Serviço #${item.id}` };
+          const valorUnitario = servico?.preco ?? 0;
+          return { selecao, qtde: item.qtde, valorUnitario };
+        })
+      : [this.criarItemFormulario<Servico>()];
+
+    const pecas = ordem.pecas.map(item => {
+      const peca = this.pecas().find(prod => prod.id === item.id);
+      const selecao: SelecaoCriavel<Peca> = peca
+        ? { id: peca.id, label: this.formatarPecaLabel(peca), data: peca }
+        : { id: item.id, label: `Peça #${item.id}` };
+      const valorUnitario = peca?.preco ?? 0;
+      return { selecao, qtde: item.qtde, valorUnitario };
+    });
+
+    return {
+      cliente: clienteSelecao,
+      veiculo: veiculoSelecao,
+      dataEntrada: ordem.dataEntrada,
+      status: statusSelecao,
+      observacoes: ordem.observacoes || '',
+      servicos,
+      pecas,
+    };
+  }
+
+  private formatarPreco(valor: number) {
+    return this.currencyFormatter.format(Number.isFinite(valor) ? valor : 0);
+  }
+
+  private formatarServicoLabel(servico: Servico) {
+    return `${servico.descricao} — ${this.formatarPreco(servico.preco)}`;
+  }
+
+  private formatarPecaLabel(peca: Peca) {
+    return `${peca.nome} — ${this.formatarPreco(peca.preco)}`;
+  }
+
+  private obterIdNumero(selecao: SelecaoCriavel): number | undefined {
+    return typeof selecao?.id === 'number' ? selecao.id : undefined;
+  }
+
+  private montarDadosVeiculo(selecao: SelecaoCriavel<Veiculo>): OrdemServicoPayload['veiculo'] {
+    const label = selecao?.label?.trim() ?? '';
+    const dados = selecao?.data;
+    const clienteId = this.obterIdNumero(this.formularioOrdem.cliente);
+    if (!dados) {
+      const [placaPossivel, ...restante] = label.split('-').map(parte => parte.trim()).filter(Boolean);
+      const descricao = label || 'Veículo não informado';
+      const restanteDescricao = restante.join('-').trim();
+      return {
+        id: this.obterIdNumero(selecao),
+        placa: placaPossivel || descricao,
+        marca: restanteDescricao || descricao,
+        modelo: restanteDescricao || descricao,
+        ano: '',
+        descricao,
+        clienteId,
+      };
+    }
+
+    return {
+      id: dados.id,
+      placa: dados.placa,
+      marca: dados.marca,
+      modelo: dados.modelo,
+      ano: dados.ano,
+      descricao: label || `${dados.placa} - ${dados.marca} ${dados.modelo}`.trim(),
+      clienteId: dados.clienteId,
+    };
   }
 }

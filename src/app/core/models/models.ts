@@ -42,6 +42,35 @@ export interface OrdemServico {
   observacoes?: string;
 }
 
+export interface OrdemServicoItemPayload {
+  id?: number;
+  descricao?: string;
+  nome?: string;
+  preco: number;
+  qtde: number;
+}
+
+export interface OrdemServicoPayload {
+  cliente: {
+    id?: number;
+    nome: string;
+  };
+  veiculo: {
+    id?: number;
+    placa?: string;
+    marca?: string;
+    modelo?: string;
+    ano?: string;
+    descricao?: string;
+    clienteId?: number;
+  };
+  dataEntrada: string;
+  status: OrdemServico['status'];
+  observacoes?: string;
+  servicos: (OrdemServicoItemPayload & { descricao: string })[];
+  pecas: (OrdemServicoItemPayload & { nome: string })[];
+}
+
 export interface MenuItem {
   id: string;
   label: string;
