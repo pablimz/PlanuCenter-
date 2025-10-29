@@ -7,6 +7,12 @@ import { RouterLink } from '@angular/router';
 
 type StatusOrdem = OrdemServico['status'];
 
+type OrdemDetalhada = {
+  ordem: OrdemServico;
+  clienteNome: string;
+  placa: string;
+};
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -158,23 +164,17 @@ type StatusOrdem = OrdemServico['status'];
   `,
 })
 export class DashboardComponent {
-  private dataService = inject(DataService);
-  
-  ordensServico = this.dataService.ordensServico;
-  veiculos = this.dataService.veiculos;
-  clientes = this.dataService.clientes;
+  private readonly dataService = inject(DataService);
 
-  statusOpcoes: StatusOrdem[] = ['Em Andamento', 'Aguardando Aprovação', 'Finalizada', 'Cancelada'];
-  busca = signal('');
-  statusSelecionados = signal(new Set<StatusOrdem>(this.statusOpcoes));
+  readonly ordensServico = this.dataService.ordensServico;
+  readonly veiculos = this.dataService.veiculos;
+  readonly clientes = this.dataService.clientes;
 
-  type OrdemDetalhada = {
-    ordem: OrdemServico;
-    clienteNome: string;
-    placa: string;
-  };
+  readonly statusOpcoes: StatusOrdem[] = ['Em Andamento', 'Aguardando Aprovação', 'Finalizada', 'Cancelada'];
+  readonly busca = signal('');
+  readonly statusSelecionados = signal(new Set<StatusOrdem>(this.statusOpcoes));
 
-  ordensRecentesFiltradas = computed<OrdemDetalhada[]>(() => {
+  readonly ordensRecentesFiltradas = computed<OrdemDetalhada[]>(() => {
     const texto = this.busca().trim().toLowerCase();
     const selecionados = this.statusSelecionados();
     const ordens = this.ordensServico();
@@ -222,7 +222,7 @@ export class DashboardComponent {
     return [...ordenar(ativas), ...ordenar(finalizadas)];
   });
 
-  stats = computed(() => {
+  readonly stats = computed(() => {
     const osList = this.ordensServico();
     return {
       emAndamento: osList.filter(os => os.status === 'Em Andamento').length,
