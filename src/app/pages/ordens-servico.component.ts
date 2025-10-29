@@ -259,7 +259,10 @@ interface FormularioOrdem {
                 ></textarea>
               </label>
 
-              <div class="md:col-span-2 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5" [class:border-rose-500/60]="campoInvalido('servicos')">
+              <div
+                class="md:col-span-2 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5"
+                [ngClass]="{ 'border-rose-500/60': campoInvalido('servicos') }"
+              >
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-200">Serviços aplicados</h4>
                   <button type="button" class="rounded-full border border-white/15 bg-white/10 px-4 py-1 text-xs font-semibold text-slate-100 transition hover:bg-white/20" (click)="adicionarServico()">
@@ -320,7 +323,10 @@ interface FormularioOrdem {
                 }
               </div>
 
-              <div class="md:col-span-2 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5" [class:border-rose-500/60]="campoInvalido('pecas')">
+              <div
+                class="md:col-span-2 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5"
+                [ngClass]="{ 'border-rose-500/60': campoInvalido('pecas') }"
+              >
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-200">Peças utilizadas</h4>
                   <button type="button" class="rounded-full border border-white/15 bg-white/10 px-4 py-1 text-xs font-semibold text-slate-100 transition hover:bg-white/20" (click)="adicionarPeca()">
