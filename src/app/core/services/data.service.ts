@@ -1,7 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { Cliente, OrdemServico, Peca, Servico, Veiculo } from '../models/models';
+import { Cliente, OrdemServico, OrdemServicoPayload, Peca, Servico, Veiculo } from '../models/models';
 
 type OfflineDatabase = {
   clientes: Cliente[];
@@ -347,7 +347,7 @@ export class DataService {
     }
   }
 
-  async criarOrdemServico(dados: Omit<OrdemServico, 'id'>) {
+  async criarOrdemServico(dados: OrdemServicoPayload) {
     if (this.modoOffline()) {
       return this.criarOrdemOffline(dados);
     }
@@ -356,6 +356,7 @@ export class DataService {
       const nova = await firstValueFrom(this.http.post<OrdemServico>(`${this.apiUrl}/ordens-servico`, dados));
       this.ordensServico.update(lista => [nova, ...lista.filter(ordem => ordem.id !== nova.id)]);
       this.offlineState.ordensServico = deepClone(this.ordensServico());
+      await this.recarregarRelacionados();
       return nova;
     } catch (error) {
       console.error('Erro ao criar ordem de serviço', error);
@@ -364,7 +365,7 @@ export class DataService {
     }
   }
 
-  async atualizarOrdemServico(id: number, dados: Omit<OrdemServico, 'id'>) {
+  async atualizarOrdemServico(id: number, dados: OrdemServicoPayload) {
     if (this.modoOffline()) {
       return this.atualizarOrdemOffline(id, dados);
     }
@@ -373,6 +374,7 @@ export class DataService {
       const atualizada = await firstValueFrom(this.http.put<OrdemServico>(`${this.apiUrl}/ordens-servico/${id}`, dados));
       this.ordensServico.update(lista => lista.map(ordem => (ordem.id === id ? atualizada : ordem)));
       this.offlineState.ordensServico = deepClone(this.ordensServico());
+      await this.recarregarRelacionados();
       return atualizada;
     } catch (error) {
       console.error('Erro ao atualizar ordem de serviço', error);
@@ -398,6 +400,23 @@ export class DataService {
     }
   }
 
+  async obterOrdemServicoDetalhado(id: number) {
+    if (this.modoOffline()) {
+      return this.getOrdemServicoById(id);
+    }
+
+    try {
+      const ordem = await firstValueFrom(this.http.get<OrdemServico>(`${this.apiUrl}/ordens-servico/${id}`));
+      this.ordensServico.update(lista => [ordem, ...lista.filter(item => item.id !== ordem.id)]);
+      this.offlineState.ordensServico = deepClone(this.ordensServico());
+      return ordem;
+    } catch (error) {
+      console.error('Erro ao carregar ordem de serviço', error);
+      this.ativarModoOffline();
+      return this.getOrdemServicoById(id);
+    }
+  }
+
   getOrdemServicoById(id: number): OrdemServico | undefined {
     return this.ordensServico().find(os => os.id === id);
   }
@@ -417,6 +436,19 @@ export class DataService {
 
   private gerarProximoId(lista: { id: number }[]) {
     return lista.reduce((max, item) => (item.id > max ? item.id : max), 0) + 1;
+  }
+
+  private async recarregarRelacionados() {
+    if (this.modoOffline()) {
+      return;
+    }
+    await Promise.all([
+      this.carregarClientes(),
+      this.carregarVeiculos(),
+      this.carregarServicos(),
+      this.carregarPecas(),
+      this.carregarOrdensServico(),
+    ]);
   }
 
   private reaplicarClientesOffline() {
@@ -547,6 +579,13 @@ export class DataService {
     return nova;
   }
 
+  private criarServicoOffline(dados: Omit<Servico, 'id'>) {
+    const novo: Servico = { id: this.gerarProximoId(this.offlineState.servicos), ...dados };
+    const atualizados = [novo, ...this.offlineState.servicos];
+    this.atualizarServicos(atualizados);
+    return novo;
+  }
+
   private atualizarPecaOffline(id: number, dados: Omit<Peca, 'id'>) {
     let atualizada: Peca | undefined;
     const atualizadas = this.offlineState.pecas.map(peca => {
@@ -563,21 +602,159 @@ export class DataService {
     return atualizada;
   }
 
-  private criarOrdemOffline(dados: Omit<OrdemServico, 'id'>) {
+  private prepararOrdemParaPersistencia(payload: OrdemServicoPayload): Omit<OrdemServico, 'id'> {
+    const nomeCliente = payload.cliente.nome?.trim() || 'Cliente';
+    const clienteId = this.garantirClienteLocal({ id: payload.cliente.id, nome: nomeCliente });
+    const veiculoId = this.garantirVeiculoLocal(payload.veiculo, clienteId);
+
+    const servicos = payload.servicos
+      .filter(item => (item.id != null) || item.descricao?.trim())
+      .map(item => {
+        const descricao = item.descricao?.trim() || 'Serviço';
+        const preco = Math.max(0, Number(item.preco) || 0);
+        const id = this.garantirServicoLocal({ id: item.id, descricao, preco });
+        return { id, qtde: Math.max(1, Number(item.qtde) || 1) };
+      });
+
+    const pecas = payload.pecas
+      .filter(item => (item.id != null) || item.nome?.trim())
+      .map(item => {
+        const nome = item.nome?.trim() || 'Peça';
+        const preco = Math.max(0, Number(item.preco) || 0);
+        const id = this.garantirPecaLocal({ id: item.id, nome, preco });
+        return { id, qtde: Math.max(1, Number(item.qtde) || 1) };
+      });
+
+    return {
+      clienteId,
+      veiculoId,
+      dataEntrada: payload.dataEntrada,
+      status: payload.status,
+      observacoes: payload.observacoes,
+      servicos,
+      pecas,
+    };
+  }
+
+  private garantirClienteLocal(info: { id?: number; nome: string }) {
+    if (info.id) {
+      const existente = this.offlineState.clientes.find(cliente => cliente.id === info.id);
+      if (existente) {
+        return existente.id;
+      }
+    }
+    const nome = info.nome.trim() || 'Cliente';
+    const existentePorNome = this.offlineState.clientes.find(cliente => cliente.nome.toLowerCase() === nome.toLowerCase());
+    if (existentePorNome) {
+      return existentePorNome.id;
+    }
+    return this.criarClienteOffline({ nome }).id;
+  }
+
+  private garantirVeiculoLocal(info: OrdemServicoPayload['veiculo'], clienteId: number) {
+    if (info.id) {
+      const existente = this.offlineState.veiculos.find(veiculo => veiculo.id === info.id);
+      if (existente) {
+        if (existente.clienteId !== clienteId) {
+          this.atualizarVeiculoOffline(existente.id, {
+            placa: existente.placa,
+            marca: existente.marca,
+            modelo: existente.modelo,
+            ano: existente.ano,
+            clienteId,
+          });
+        }
+        return existente.id;
+      }
+    }
+
+    const placaBase = (info.placa || info.descricao || 'VEICULO').trim().toUpperCase();
+    const existentePorPlaca = this.offlineState.veiculos.find(veiculo => veiculo.placa.toLowerCase() === placaBase.toLowerCase());
+    if (existentePorPlaca) {
+      if (existentePorPlaca.clienteId !== clienteId) {
+        this.atualizarVeiculoOffline(existentePorPlaca.id, {
+          placa: existentePorPlaca.placa,
+          marca: existentePorPlaca.marca,
+          modelo: existentePorPlaca.modelo,
+          ano: existentePorPlaca.ano,
+          clienteId,
+        });
+      }
+      return existentePorPlaca.id;
+    }
+
+    const marca = info.marca?.trim() || info.descricao?.trim() || placaBase;
+    const modelo = info.modelo?.trim() || info.descricao?.trim() || placaBase;
+    const ano = info.ano?.trim() || new Date().getFullYear().toString();
+    const novo = this.criarVeiculoOffline({
+      placa: placaBase,
+      marca,
+      modelo,
+      ano,
+      clienteId,
+    });
+    return novo.id;
+  }
+
+  private garantirServicoLocal(info: { id?: number; descricao: string; preco: number }) {
+    if (info.id) {
+      const existente = this.offlineState.servicos.find(servico => servico.id === info.id);
+      if (existente) {
+        return existente.id;
+      }
+    }
+    const descricao = info.descricao.trim() || 'Serviço';
+    const existenteDescricao = this.offlineState.servicos.find(servico => servico.descricao.toLowerCase() === descricao.toLowerCase());
+    if (existenteDescricao) {
+      return existenteDescricao.id;
+    }
+    return this.criarServicoOffline({ descricao, preco: Math.max(0, Number(info.preco) || 0) }).id;
+  }
+
+  private garantirPecaLocal(info: { id?: number; nome: string; preco: number }) {
+    if (info.id) {
+      const existente = this.offlineState.pecas.find(peca => peca.id === info.id);
+      if (existente) {
+        return existente.id;
+      }
+    }
+    const nome = info.nome.trim() || 'Peça';
+    const existenteNome = this.offlineState.pecas.find(peca => peca.nome.toLowerCase() === nome.toLowerCase());
+    if (existenteNome) {
+      return existenteNome.id;
+    }
+    const codigo = this.gerarCodigoPeca(nome);
+    return this.criarPecaOffline({ nome, codigo, estoque: 0, preco: Math.max(0, Number(info.preco) || 0) }).id;
+  }
+
+  private gerarCodigoPeca(nome: string) {
+    const base = nome.replace(/[^A-Za-z0-9]/g, '').toUpperCase() || 'PECA';
+    let codigo = base.slice(0, 8);
+    let sufixo = 1;
+    while (this.offlineState.pecas.some(peca => peca.codigo === codigo)) {
+      codigo = `${base.slice(0, 6)}${String(sufixo).padStart(2, '0')}`;
+      sufixo += 1;
+    }
+    return codigo;
+  }
+
+  private criarOrdemOffline(payload: OrdemServicoPayload) {
+    const dados = this.prepararOrdemParaPersistencia(payload);
     const nova: OrdemServico = {
       id: this.gerarProximoId(this.offlineState.ordensServico),
-      ...deepClone(dados)
+      ...dados,
     };
     const atualizadas = [nova, ...this.offlineState.ordensServico];
     this.atualizarOrdens(atualizadas);
     return nova;
   }
 
-  private atualizarOrdemOffline(id: number, dados: Omit<OrdemServico, 'id'>) {
+  private atualizarOrdemOffline(id: number, payload: OrdemServicoPayload) {
+    const dados = this.prepararOrdemParaPersistencia(payload);
     let atualizada: OrdemServico | undefined;
     const atualizadas = this.offlineState.ordensServico.map(ordem => {
       if (ordem.id === id) {
-        atualizada = { ...ordem, ...deepClone(dados) };
+        atualizada = { ...ordem, ...dados, id };
         return atualizada;
       }
       return ordem;

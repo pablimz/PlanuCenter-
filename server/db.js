@@ -193,6 +193,28 @@ function updatePeca(id, updates) {
   return atualizado;
 }
 
+function addServico(servico) {
+  const novo = { id: nextId('servicos'), ...servico };
+  data.servicos = [novo, ...data.servicos];
+  saveDatabase();
+  return novo;
+}
+
+function updateServico(id, updates) {
+  let atualizado;
+  data.servicos = data.servicos.map(servico => {
+    if (servico.id === id) {
+      atualizado = { ...servico, ...updates, id };
+      return atualizado;
+    }
+    return servico;
+  });
+  if (atualizado) {
+    saveDatabase();
+  }
+  return atualizado;
+}
+
 function addOrdemServico(ordem) {
   const nova = { id: nextId('ordensServico'), servicos: [], pecas: [], ...ordem };
   data.ordensServico = [nova, ...data.ordensServico];
@@ -215,6 +237,16 @@ function updateOrdemServico(id, updates) {
   return atualizada;
 }
 
+function deleteOrdemServico(id) {
+  const tamanhoAntes = data.ordensServico.length;
+  data.ordensServico = data.ordensServico.filter(ordem => ordem.id !== id);
+  if (data.ordensServico.length !== tamanhoAntes) {
+    saveDatabase();
+    return true;
+  }
+  return false;
+}
+
 module.exports = {
   getClientes,
   getVeiculos,
@@ -227,8 +259,11 @@ module.exports = {
   updateVeiculo,
   addPeca,
   updatePeca,
+  addServico,
+  updateServico,
   addOrdemServico,
   updateOrdemServico,
+  deleteOrdemServico,
   nextId,
   saveDatabase,
   data

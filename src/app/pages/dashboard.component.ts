@@ -1,12 +1,16 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { DataService } from '../core/services/data.service';
+import { OrdemServico } from '../core/models/models';
 import { RouterLink } from '@angular/router';
+
+type StatusOrdem = OrdemServico['status'];
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <section class="space-y-8">
       <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -73,7 +77,37 @@ import { RouterLink } from '@angular/router';
           </a>
         </div>
 
-        <div class="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+        <div class="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <label class="relative flex w-full items-center lg:max-w-sm">
+            <svg class="pointer-events-none absolute left-4 h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35M18 10.5a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
+            <input
+              type="search"
+              class="w-full rounded-full border border-white/10 bg-slate-900/60 py-2 pl-10 pr-4 text-sm text-slate-100 placeholder:text-slate-400 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+              placeholder="Buscar por cliente, placa, status ou nº da O.S."
+              [ngModel]="busca()"
+              (ngModelChange)="atualizarBusca($event)"
+            />
+          </label>
+
+          <div class="flex flex-wrap gap-2">
+            @for (status of statusOpcoes; track status) {
+              <button
+                type="button"
+                class="rounded-full border px-4 py-1 text-xs font-semibold transition"
+                [class.bg-sky-500/20]="estaSelecionado(status)"
+                [class.border-sky-400]="estaSelecionado(status)"
+                [class.text-sky-100]="estaSelecionado(status)"
+                [class.border-white/15]="!estaSelecionado(status)"
+                [class.text-slate-200]="!estaSelecionado(status)"
+                (click)="alternarStatus(status)"
+              >
+                {{ status }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
           <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-white/10 text-left text-sm text-slate-100">
               <thead class="bg-white/5 text-xs uppercase tracking-wider text-slate-300">
@@ -86,27 +120,33 @@ import { RouterLink } from '@angular/router';
                 </tr>
               </thead>
               <tbody class="divide-y divide-white/5 text-sm">
-                @for (os of ordensServico().slice(0, 5); track os.id) {
-                  <tr class="transition hover:bg-white/5">
-                    <td class="whitespace-nowrap px-6 py-4 font-semibold text-sky-300">
-                      <a
-                        [routerLink]="['/ordens-servico', os.id]"
-                        class="transition hover:text-sky-200"
-                      >
-                        #{{ os.id }}
-                      </a>
-                    </td>
-                    <td class="px-6 py-4">{{ getVeiculo(os.veiculoId)?.placa }}</td>
-                    <td class="px-6 py-4">{{ getCliente(os.clienteId)?.nome }}</td>
-                    <td class="px-6 py-4 text-center">{{ os.dataEntrada }}</td>
-                    <td class="px-6 py-4 text-center">
-                      <span
-                        class="inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold"
-                        [ngClass]="getStatusClass(os.status)"
-                      >
-                        {{ os.status }}
-                      </span>
-                    </td>
+                @if (ordensRecentesFiltradas().length) {
+                  @for (item of ordensRecentesFiltradas().slice(0, 8); track item.ordem.id) {
+                    <tr class="transition hover:bg-white/5">
+                      <td class="whitespace-nowrap px-6 py-4 font-semibold text-sky-300">
+                        <a
+                          [routerLink]="['/ordens-servico', item.ordem.id]"
+                          class="transition hover:text-sky-200"
+                        >
+                          #{{ item.ordem.id }}
+                        </a>
+                      </td>
+                      <td class="px-6 py-4">{{ item.placa || '—' }}</td>
+                      <td class="px-6 py-4">{{ item.clienteNome || '—' }}</td>
+                      <td class="px-6 py-4 text-center">{{ item.ordem.dataEntrada }}</td>
+                      <td class="px-6 py-4 text-center">
+                        <span
+                          class="inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold"
+                          [ngClass]="getStatusClass(item.ordem.status)"
+                        >
+                          {{ item.ordem.status }}
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                } @else {
+                  <tr>
+                    <td colspan="5" class="px-6 py-6 text-center text-sm text-slate-300">Nenhuma ordem encontrada.</td>
                   </tr>
                 }
               </tbody>
@@ -124,6 +164,58 @@ export class DashboardComponent {
   veiculos = this.dataService.veiculos;
   clientes = this.dataService.clientes;
 
+  statusOpcoes: StatusOrdem[] = ['Em Andamento', 'Aguardando Aprovação', 'Finalizada', 'Cancelada'];
+  busca = signal('');
+  statusSelecionados = signal(new Set<StatusOrdem>(this.statusOpcoes));
+
+  ordensRecentesFiltradas = computed(() => {
+    const texto = this.busca().trim().toLowerCase();
+    const selecionados = this.statusSelecionados();
+    const ordens = this.ordensServico();
+    const clientes = this.clientes();
+    const veiculos = this.veiculos();
+
+    const detalhadas = ordens.map(ordem => {
+      const cliente = clientes.find(item => item.id === ordem.clienteId);
+      const veiculo = veiculos.find(item => item.id === ordem.veiculoId);
+      return {
+        ordem,
+        clienteNome: cliente?.nome ?? '',
+        placa: veiculo?.placa ?? '',
+      };
+    });
+
+    const filtradas = detalhadas.filter(item => {
+      if (!selecionados.has(item.ordem.status)) {
+        return false;
+      }
+      if (!texto) {
+        return true;
+      }
+      const campos = [
+        `#${item.ordem.id}`,
+        String(item.ordem.id),
+        item.clienteNome,
+        item.placa,
+        item.ordem.status,
+      ].map(valor => valor.toLowerCase());
+      return campos.some(valor => valor.includes(texto));
+    });
+
+    const ordenar = (lista: { ordem: OrdemServico }[]) =>
+      [...lista].sort((a, b) => {
+        if (a.ordem.dataEntrada === b.ordem.dataEntrada) {
+          return b.ordem.id - a.ordem.id;
+        }
+        return a.ordem.dataEntrada > b.ordem.dataEntrada ? -1 : 1;
+      });
+
+    const ativas = filtradas.filter(item => item.ordem.status !== 'Finalizada');
+    const finalizadas = filtradas.filter(item => item.ordem.status === 'Finalizada');
+
+    return [...ordenar(ativas), ...ordenar(finalizadas)];
+  });
+
   stats = computed(() => {
     const osList = this.ordensServico();
     return {
@@ -133,12 +225,22 @@ export class DashboardComponent {
     }
   });
 
-  getVeiculo(id: number) {
-    return this.veiculos().find(v => v.id === id);
+  atualizarBusca(valor: string) {
+    this.busca.set(valor);
   }
 
-  getCliente(id: number) {
-    return this.clientes().find(c => c.id === id);
+  alternarStatus(status: StatusOrdem) {
+    const atual = new Set(this.statusSelecionados());
+    if (atual.has(status)) {
+      atual.delete(status);
+    } else {
+      atual.add(status);
+    }
+    this.statusSelecionados.set(atual);
+  }
+
+  estaSelecionado(status: StatusOrdem) {
+    return this.statusSelecionados().has(status);
   }
 
   getStatusClass(status: string) {
