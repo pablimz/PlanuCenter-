@@ -3,9 +3,11 @@
 @if (isLoginRoute()) {
   <router-outlet></router-outlet>
 } @else {
-  <div class="flex h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 font-sans text-slate-100">
+  <div
+    class="flex h-screen font-sans bg-slate-100 text-slate-900 transition-colors duration-300 dark:bg-gradient-to-br dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950 dark:text-slate-100"
+  >
     <aside
-      class="w-64 bg-gray-800 text-white flex-shrink-0 flex flex-col fixed inset-y-0 left-0 z-30 transition-transform duration-300 md:translate-x-0"
+      class="w-64 flex-shrink-0 flex flex-col fixed inset-y-0 left-0 z-30 transition-transform duration-300 bg-white text-slate-900 shadow-xl md:translate-x-0 dark:bg-gray-800 dark:text-white"
       [class.translate-x-0]="isMobileMenuOpen()"
       [class.-translate-x-full]="!isMobileMenuOpen()"
     >
@@ -17,32 +19,76 @@
     }
 
     <div class="flex-1 flex flex-col overflow-hidden md:pl-64">
-      <header class="h-16 bg-slate-900/70 backdrop-blur border-b border-white/10 flex items-center justify-between px-4 sm:px-6 flex-shrink-0">
+      <header
+        class="h-16 flex items-center justify-between px-4 sm:px-6 flex-shrink-0 border-b border-slate-200/60 bg-white/80 text-slate-800 backdrop-blur transition-colors duration-300 dark:border-white/10 dark:bg-slate-900/70 dark:text-slate-100"
+      >
         <div class="flex items-center gap-3">
-          <button class="md:hidden text-slate-200" (click)="isMobileMenuOpen.set(true)">
+          <button
+            type="button"
+            class="flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white/80 text-slate-700 shadow-sm transition hover:bg-white dark:border-white/20 dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/20 sm:hidden"
+            (click)="toggleTheme()"
+            [attr.aria-label]="themeLabel()"
+            [attr.title]="themeLabel()"
+          >
+            @if (isDarkMode()) {
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  d="M10 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10m0 2.5a1 1 0 0 1 1 1v.75a1 1 0 0 1-2 0V18.5a1 1 0 0 1 1-1m0-15a1 1 0 0 1-1-1V.75a1 1 0 1 1 2 0V1.5a1 1 0 0 1-1 1m9 6.5a1 1 0 0 1-1 1h-.75a1 1 0 0 1 0-2h.75a1 1 0 0 1 1 1M2.75 10a1 1 0 0 1-1 1H1a1 1 0 0 1 0-2h.75a1 1 0 0 1 1 1m14.45 6.36a1 1 0 0 1-1.41 0l-.53-.53a1 1 0 1 1 1.41-1.41l.53.53a1 1 0 0 1 0 1.41M4.53 4.99a1 1 0 0 1-1.41 0l-.53-.53A1 1 0 0 1 4 3.05l.53.53a1 1 0 0 1 0 1.41m10.5-.94a1 1 0 0 1 0-1.41l.53-.53a1 1 0 0 1 1.41 1.41l-.53.53a1 1 0 0 1-1.41 0M3.47 15.47a1 1 0 0 1 0-1.41l.53-.53a1 1 0 1 1 1.41 1.41l-.53.53a1 1 0 0 1-1.41 0"
+                />
+              </svg>
+            } @else {
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  d="M10.61 2.003a8 8 0 1 0 7.39 7.39 6.5 6.5 0 0 1-7.39-7.39"
+                />
+              </svg>
+            }
+          </button>
+          <button
+            type="button"
+            class="hidden h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white/80 text-slate-700 shadow-sm transition hover:bg-white dark:border-white/20 dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/20 sm:flex"
+            (click)="toggleTheme()"
+            [attr.aria-label]="themeLabel()"
+            [attr.title]="themeLabel()"
+          >
+            @if (isDarkMode()) {
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  d="M10 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10m0 2.5a1 1 0 0 1 1 1v.75a1 1 0 0 1-2 0V18.5a1 1 0 0 1 1-1m0-15a1 1 0 0 1-1-1V.75a1 1 0 1 1 2 0V1.5a1 1 0 0 1-1 1m9 6.5a1 1 0 0 1-1 1h-.75a1 1 0 0 1 0-2h.75a1 1 0 0 1 1 1M2.75 10a1 1 0 0 1-1 1H1a1 1 0 0 1 0-2h.75a1 1 0 0 1 1 1m14.45 6.36a1 1 0 0 1-1.41 0l-.53-.53a1 1 0 1 1 1.41-1.41l.53.53a1 1 0 0 1 0 1.41M4.53 4.99a1 1 0 0 1-1.41 0l-.53-.53A1 1 0 0 1 4 3.05l.53.53a1 1 0 0 1 0 1.41m10.5-.94a1 1 0 0 1 0-1.41l.53-.53a1 1 0 0 1 1.41 1.41l-.53.53a1 1 0 0 1-1.41 0M3.47 15.47a1 1 0 0 1 0-1.41l.53-.53a1 1 0 1 1 1.41 1.41l-.53.53a1 1 0 0 1-1.41 0"
+                />
+              </svg>
+            } @else {
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  d="M10.61 2.003a8 8 0 1 0 7.39 7.39 6.5 6.5 0 0 1-7.39-7.39"
+                />
+              </svg>
+            }
+          </button>
+          <button class="md:hidden text-slate-700 dark:text-slate-200" (click)="isMobileMenuOpen.set(true)">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
         </div>
 
         <div class="relative" *ngIf="usuarioAtual(); else placeholderUsuario">
           <button
-            class="flex items-center rounded-full bg-white/10 pl-2 pr-3 text-left text-sm text-slate-100 transition hover:bg-white/20"
+            class="flex items-center rounded-full border border-slate-200 bg-white/80 pl-2 pr-3 text-left text-sm text-slate-700 transition hover:bg-white dark:border-white/10 dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/20"
             (click)="toggleProfileMenu()"
           >
             <div class="mr-2 h-9 w-9 rounded-full bg-gradient-to-br from-sky-500 via-blue-500 to-indigo-600 text-white flex items-center justify-center font-semibold shadow-lg shadow-sky-500/40">
               {{ iniciaisUsuario() }}
             </div>
             <div class="hidden sm:block leading-tight">
-              <p class="font-semibold text-slate-100">{{ usuarioAtual()!.nome }}</p>
-              <p class="text-xs text-slate-300/80">{{ cargoUsuario() }}</p>
+              <p class="font-semibold text-slate-800 dark:text-slate-100">{{ usuarioAtual()!.nome }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-300/80">{{ cargoUsuario() }}</p>
             </div>
             <svg xmlns="http://www.w3.org/2000/svg" class="ml-2 h-4 w-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9 6 6 6-6" /></svg>
           </button>
 
           @if (isProfileMenuOpen()) {
-            <div class="absolute right-0 mt-2 w-48 rounded-2xl border border-white/10 bg-slate-950/90 p-2 text-sm shadow-xl shadow-slate-950/60 backdrop-blur">
-              <button class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-rose-200 transition hover:bg-white/10" (click)="logout()">
-                <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-500/20 text-rose-200">
+            <div class="absolute right-0 mt-2 w-48 rounded-2xl border border-slate-200/70 bg-white/95 p-2 text-sm shadow-xl shadow-slate-200/60 backdrop-blur dark:border-white/10 dark:bg-slate-950/90 dark:shadow-slate-950/60">
+              <button class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-rose-500 transition hover:bg-rose-50 dark:text-rose-200 dark:hover:bg-white/10" (click)="logout()">
+                <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100 text-rose-500 dark:bg-rose-500/20 dark:text-rose-200">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m15 17 5-5-5-5M20 12H9m6 7v-1a4 4 0 0 0-4-4H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6" /></svg>
                 </span>
                 <span class="font-medium">Sair</span>
@@ -51,7 +97,7 @@
           }
         </div>
         <ng-template #placeholderUsuario>
-          <div class="h-9 w-9 rounded-full bg-slate-700"></div>
+          <div class="h-9 w-9 rounded-full bg-slate-200 dark:bg-slate-700"></div>
         </ng-template>
       </header>
 

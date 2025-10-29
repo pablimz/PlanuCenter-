@@ -8,13 +8,13 @@ import { MenuItem } from '../core/models/models';
   standalone: true,
   imports: [CommonModule, RouterLink, RouterLinkActive],
   template: `
-    <div class="flex h-full flex-col bg-gradient-to-b from-gray-950 via-gray-900 to-gray-800 text-gray-100">
-      <div class="flex h-24 items-center justify-center px-6">
+    <div class="flex h-full flex-col border-r border-slate-200/80 bg-slate-50 text-slate-700 transition-colors duration-300 dark:border-transparent dark:bg-gradient-to-b dark:from-gray-950 dark:via-gray-900 dark:to-gray-800 dark:text-gray-100">
+      <div class="flex h-24 items-center justify-center px-6 border-b border-slate-200/70 dark:border-white/10">
         <svg
           role="img"
           aria-labelledby="planu-logo-title"
           viewBox="0 0 420 96"
-          class="h-16 w-full text-white"
+          class="h-16 w-full text-slate-800 dark:text-white"
           preserveAspectRatio="xMidYMid meet"
         >
           <title id="planu-logo-title">PlanuCenter</title>
@@ -57,8 +57,8 @@ import { MenuItem } from '../core/models/models';
       </div>
 
       <div class="flex-1 overflow-y-auto px-3 pb-6">
-        <div class="rounded-2xl bg-white/5 p-3">
-          <p class="px-3 text-xs font-semibold uppercase tracking-wider text-gray-400">Navegação</p>
+        <div class="rounded-2xl bg-white p-3 shadow-sm dark:bg-white/5 dark:shadow-none">
+          <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">Navegação</p>
           <nav class="mt-2 space-y-1">
             @for (item of menuItems; track item.id) {
               <a
@@ -66,9 +66,9 @@ import { MenuItem } from '../core/models/models';
                 routerLinkActive="bg-blue-500/80 text-white shadow-lg shadow-blue-900/30"
                 [routerLinkActiveOptions]="{ exact: true }"
                 (click)="navItemClicked.emit()"
-                class="flex items-center rounded-xl px-4 py-2 text-sm font-medium text-gray-300 transition-all duration-200 hover:bg-white/10 hover:text-white"
+                class="flex items-center rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
               >
-                <span class="mr-3 flex h-9 w-9 items-center justify-center rounded-lg bg-white/5">
+                <span class="mr-3 flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-white/5 dark:text-gray-200">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"

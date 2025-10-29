@@ -6,6 +6,7 @@ import { NotificationCenterComponent } from './core/components/notification-cent
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from './core/services/auth.service';
+import { ThemeService } from './core/services/theme.service';
 
 @Component({
   selector: 'app-root',
@@ -17,6 +18,7 @@ import { AuthService } from './core/services/auth.service';
 export class App {
   private router = inject(Router);
   private auth = inject(AuthService);
+  private themeService = inject(ThemeService);
 
   isMobileMenuOpen = signal(false);
   private profileMenuOpen = signal(false);
@@ -33,6 +35,8 @@ export class App {
   isLoginRoute = computed(() => this.currentUrl().startsWith('/login'));
   isProfileMenuOpen = computed(() => this.profileMenuOpen());
   usuarioAtual = this.auth.usuarioAtual;
+  isDarkMode = this.themeService.isDark;
+  themeLabel = computed(() => (this.isDarkMode() ? 'Alternar para modo claro' : 'Alternar para modo escuro'));
   cargoUsuario = computed(() => {
     const usuario = this.usuarioAtual();
     if (!usuario) {
@@ -71,5 +75,9 @@ export class App {
     this.isMobileMenuOpen.set(false);
     this.auth.logout();
     void this.router.navigate(['/login']);
+  }
+
+  toggleTheme(): void {
+    this.themeService.toggleTheme();
   }
 }
