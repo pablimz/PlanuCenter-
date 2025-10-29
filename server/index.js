@@ -32,6 +32,18 @@ function sendJson(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
+function sendSuccess(res, status, data) {
+  sendJson(res, status, { success: true, data });
+}
+
+function sendError(res, status, message, details) {
+  sendJson(res, status, {
+    success: false,
+    message,
+    details: details ?? undefined,
+  });
+}
+
 function parseBody(req, res, callback) {
   const chunks = [];
   req.on('data', chunk => chunks.push(chunk));
@@ -45,7 +57,7 @@ function parseBody(req, res, callback) {
       const body = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
       callback(body);
     } catch (error) {
-      sendJson(res, 400, { message: 'JSON inválido no corpo da requisição.' });
+      sendError(res, 400, 'JSON inválido no corpo da requisição.', error instanceof Error ? error.message : undefined);
     }
   });
 }
@@ -61,7 +73,32 @@ function mapVeiculo(veiculo) {
 function mapOrdem(ordem) {
   return {
     ...ordem,
-    observacoes: ordem.observacoes || undefined
+    observacoes: ordem.observacoes || undefined,
+    totais: calcularTotaisOrdem(ordem),
+  };
+}
+
+function calcularTotaisOrdem(ordem) {
+  const servicosCatalogo = getServicos();
+  const pecasCatalogo = getPecas();
+  const totalServicos = Array.isArray(ordem.servicos)
+    ? ordem.servicos.reduce((total, item) => {
+        const servico = servicosCatalogo.find(servicoAtual => servicoAtual.id === item.id);
+        const preco = servico?.preco ?? 0;
+        return total + preco * (item.qtde ?? 0);
+      }, 0)
+    : 0;
+  const totalPecas = Array.isArray(ordem.pecas)
+    ? ordem.pecas.reduce((total, item) => {
+        const peca = pecasCatalogo.find(pecaAtual => pecaAtual.id === item.id);
+        const preco = peca?.preco ?? 0;
+        return total + preco * (item.qtde ?? 0);
+      }, 0)
+    : 0;
+  return {
+    totalServicos,
+    totalPecas,
+    totalGeral: totalServicos + totalPecas,
   };
 }
 
@@ -312,6 +349,10 @@ function prepararDadosOrdem(body) {
         return lista;
       }, []);
 
+      if (!servicosSanitizados.length && !pecasSanitizadas.length) {
+        return { error: 'Inclua ao menos um serviço ou peça.' };
+      }
+
       return {
         dados: {
           clienteId,
@@ -368,6 +409,10 @@ function prepararDadosOrdem(body) {
     return lista;
   }, []);
 
+  if (!servicosSanitizados.length && !pecasSanitizadas.length) {
+    return { error: 'Inclua ao menos um serviço ou peça.' };
+  }
+
   return {
     dados: {
       clienteId,
@@ -383,7 +428,7 @@ function prepararDadosOrdem(body) {
 
 const server = http.createServer((req, res) => {
   if (!req.url) {
-    sendJson(res, 400, { message: 'Requisição inválida.' });
+    sendError(res, 400, 'Requisição inválida.');
     return;
   }
 
@@ -405,7 +450,7 @@ const server = http.createServer((req, res) => {
         email: cliente.email || undefined,
         telefone: cliente.telefone || undefined
       }));
-      sendJson(res, 200, clientes);
+      sendSuccess(res, 200, clientes);
       return;
     }
 
@@ -413,7 +458,7 @@ const server = http.createServer((req, res) => {
       parseBody(req, res, body => {
         const { nome, email, telefone } = body || {};
         if (!nome || !nome.trim()) {
-          sendJson(res, 400, { message: 'Nome é obrigatório.' });
+          sendError(res, 400, 'Nome é obrigatório.');
           return;
         }
 
@@ -422,7 +467,7 @@ const server = http.createServer((req, res) => {
           email: email?.trim() || undefined,
           telefone: telefone?.trim() || undefined
         });
-        sendJson(res, 201, novo);
+        sendSuccess(res, 201, novo);
       });
       return;
     }
@@ -432,7 +477,7 @@ const server = http.createServer((req, res) => {
       parseBody(req, res, body => {
         const { nome, email, telefone } = body || {};
         if (!nome || !nome.trim()) {
-          sendJson(res, 400, { message: 'Nome é obrigatório.' });
+          sendError(res, 400, 'Nome é obrigatório.');
           return;
         }
         const atualizado = updateCliente(id, {
@@ -441,17 +486,17 @@ const server = http.createServer((req, res) => {
           telefone: telefone?.trim() || undefined
         });
         if (!atualizado) {
-          sendJson(res, 404, { message: 'Cliente não encontrado.' });
+          sendError(res, 404, 'Cliente não encontrado.');
           return;
         }
-        sendJson(res, 200, atualizado);
+        sendSuccess(res, 200, atualizado);
       });
       return;
     }
 
     if (req.method === 'GET' && pathname === '/api/veiculos') {
       const veiculos = [...getVeiculos()].sort((a, b) => b.id - a.id).map(mapVeiculo);
-      sendJson(res, 200, veiculos);
+      sendSuccess(res, 200, veiculos);
       return;
     }
 
@@ -459,12 +504,12 @@ const server = http.createServer((req, res) => {
       parseBody(req, res, body => {
         const { placa, marca, modelo, ano, clienteId } = body || {};
         if (!placa || !marca || !modelo || !ano || !clienteId) {
-          sendJson(res, 400, { message: 'Dados obrigatórios ausentes.' });
+          sendError(res, 400, 'Dados obrigatórios ausentes.');
           return;
         }
         const jaExiste = getVeiculos().some(v => v.placa.toLowerCase() === placa.trim().toLowerCase());
         if (jaExiste) {
-          sendJson(res, 409, { message: 'Já existe um veículo com esta placa.' });
+          sendError(res, 409, 'Já existe um veículo com esta placa.');
           return;
         }
         const novo = addVeiculo({
@@ -474,7 +519,7 @@ const server = http.createServer((req, res) => {
           ano: ano.trim(),
           clienteId: Number(clienteId)
         });
-        sendJson(res, 201, mapVeiculo(novo));
+        sendSuccess(res, 201, mapVeiculo(novo));
       });
       return;
     }
@@ -484,12 +529,12 @@ const server = http.createServer((req, res) => {
       parseBody(req, res, body => {
         const { placa, marca, modelo, ano, clienteId } = body || {};
         if (!placa || !marca || !modelo || !ano || !clienteId) {
-          sendJson(res, 400, { message: 'Dados obrigatórios ausentes.' });
+          sendError(res, 400, 'Dados obrigatórios ausentes.');
           return;
         }
         const outroVeiculo = getVeiculos().find(v => v.placa.toLowerCase() === placa.trim().toLowerCase() && v.id !== id);
         if (outroVeiculo) {
-          sendJson(res, 409, { message: 'Já existe um veículo com esta placa.' });
+          sendError(res, 409, 'Já existe um veículo com esta placa.');
           return;
         }
         const atualizado = updateVeiculo(id, {
@@ -500,17 +545,17 @@ const server = http.createServer((req, res) => {
           clienteId: Number(clienteId)
         });
         if (!atualizado) {
-          sendJson(res, 404, { message: 'Veículo não encontrado.' });
+          sendError(res, 404, 'Veículo não encontrado.');
           return;
         }
-        sendJson(res, 200, mapVeiculo(atualizado));
+        sendSuccess(res, 200, mapVeiculo(atualizado));
       });
       return;
     }
 
     if (req.method === 'GET' && pathname === '/api/pecas') {
       const pecas = [...getPecas()].sort((a, b) => b.id - a.id);
-      sendJson(res, 200, pecas);
+      sendSuccess(res, 200, pecas);
       return;
     }
 
@@ -518,7 +563,7 @@ const server = http.createServer((req, res) => {
       parseBody(req, res, body => {
         const { nome, codigo, estoque, preco } = body || {};
         if (!nome || !codigo) {
-          sendJson(res, 400, { message: 'Nome e código são obrigatórios.' });
+          sendError(res, 400, 'Nome e código são obrigatórios.');
           return;
         }
         const novo = addPeca({
@@ -527,7 +572,7 @@ const server = http.createServer((req, res) => {
           estoque: Number.isFinite(Number(estoque)) ? Number(estoque) : 0,
           preco: Number.isFinite(Number(preco)) ? Number(preco) : 0
         });
-        sendJson(res, 201, novo);
+        sendSuccess(res, 201, novo);
       });
       return;
     }
@@ -537,7 +582,7 @@ const server = http.createServer((req, res) => {
       parseBody(req, res, body => {
         const { nome, codigo, estoque, preco } = body || {};
         if (!nome || !codigo) {
-          sendJson(res, 400, { message: 'Nome e código são obrigatórios.' });
+          sendError(res, 400, 'Nome e código são obrigatórios.');
           return;
         }
         const atualizada = updatePeca(id, {
@@ -547,23 +592,23 @@ const server = http.createServer((req, res) => {
           preco: Number.isFinite(Number(preco)) ? Number(preco) : 0
         });
         if (!atualizada) {
-          sendJson(res, 404, { message: 'Peça não encontrada.' });
+          sendError(res, 404, 'Peça não encontrada.');
           return;
         }
-        sendJson(res, 200, atualizada);
+        sendSuccess(res, 200, atualizada);
       });
       return;
     }
 
     if (req.method === 'GET' && pathname === '/api/servicos') {
       const servicos = [...getServicos()].sort((a, b) => b.id - a.id);
-      sendJson(res, 200, servicos);
+      sendSuccess(res, 200, servicos);
       return;
     }
 
     if (req.method === 'GET' && pathname === '/api/ordens-servico') {
       const ordens = [...getOrdensServico()].sort((a, b) => b.id - a.id).map(mapOrdem);
-      sendJson(res, 200, ordens);
+      sendSuccess(res, 200, ordens);
       return;
     }
 
@@ -571,10 +616,10 @@ const server = http.createServer((req, res) => {
       const id = Number(pathname.split('/').pop());
       const ordem = getOrdensServico().find(item => item.id === id);
       if (!ordem) {
-        sendJson(res, 404, { message: 'Ordem de serviço não encontrada.' });
+        sendError(res, 404, 'Ordem de serviço não encontrada.');
         return;
       }
-      sendJson(res, 200, mapOrdem(ordem));
+      sendSuccess(res, 200, mapOrdem(ordem));
       return;
     }
 
@@ -582,11 +627,11 @@ const server = http.createServer((req, res) => {
       parseBody(req, res, body => {
         const resultado = prepararDadosOrdem(body);
         if (resultado.error) {
-          sendJson(res, 400, { message: resultado.error });
+          sendError(res, 400, resultado.error);
           return;
         }
         const nova = addOrdemServico(resultado.dados);
-        sendJson(res, 201, mapOrdem(nova));
+        sendSuccess(res, 201, mapOrdem(nova));
       });
       return;
     }
@@ -596,15 +641,15 @@ const server = http.createServer((req, res) => {
       parseBody(req, res, body => {
         const resultado = prepararDadosOrdem(body);
         if (resultado.error) {
-          sendJson(res, 400, { message: resultado.error });
+          sendError(res, 400, resultado.error);
           return;
         }
         const atualizada = updateOrdemServico(id, resultado.dados);
         if (!atualizada) {
-          sendJson(res, 404, { message: 'Ordem de serviço não encontrada.' });
+          sendError(res, 404, 'Ordem de serviço não encontrada.');
           return;
         }
-        sendJson(res, 200, mapOrdem(atualizada));
+        sendSuccess(res, 200, mapOrdem(atualizada));
       });
       return;
     }
@@ -613,17 +658,22 @@ const server = http.createServer((req, res) => {
       const id = Number(pathname.split('/').pop());
       const removida = deleteOrdemServico(id);
       if (!removida) {
-        sendJson(res, 404, { message: 'Ordem de serviço não encontrada.' });
+        sendError(res, 404, 'Ordem de serviço não encontrada.');
         return;
       }
-      sendJson(res, 200, { success: true });
+      sendSuccess(res, 200, true);
       return;
     }
 
-    sendJson(res, 404, { message: 'Rota não encontrada.' });
+    sendError(res, 404, 'Rota não encontrada.');
   } catch (error) {
     console.error('Erro inesperado:', error);
-    sendJson(res, 500, { message: 'Erro interno do servidor.' });
+    sendError(
+      res,
+      500,
+      'Erro interno do servidor.',
+      error instanceof Error ? error.message : error,
+    );
   }
 });
 

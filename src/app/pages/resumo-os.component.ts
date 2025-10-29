@@ -2,6 +2,7 @@ import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DataService } from '../core/services/data.service';
 import { OrdemServico, Veiculo, Cliente, Servico, Peca } from '../core/models/models';
+import { montarResumoFinanceiroOrdem } from '../core/utils/ordem-financeiro';
 import { RouterLink } from '@angular/router';
 import { ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -137,32 +138,22 @@ export class ResumoOsComponent {
 
     const veiculo = this.dataService.veiculos().find(v => v.id === os.veiculoId);
     const cliente = this.dataService.clientes().find(c => c.id === os.clienteId);
-    
-    let totalServicos = 0;
-    const servicosComDetalhes = os.servicos.map(item => {
-      const servico = this.dataService.servicos().find(s => s.id === item.id);
-      const subtotal = (servico?.preco || 0) * item.qtde;
-      totalServicos += subtotal;
-      return {...servico, ...item, subtotal};
-    });
-
-    let totalPecas = 0;
-    const pecasComDetalhes = os.pecas.map(item => {
-      const peca = this.dataService.pecas().find(p => p.id === item.id);
-      const subtotal = (peca?.preco || 0) * item.qtde;
-      totalPecas += subtotal;
-      return {...peca, ...item, subtotal};
-    });
+    const financeiro = montarResumoFinanceiroOrdem(os, this.dataService.servicos(), this.dataService.pecas());
+    const totais = os.totais ?? {
+      totalServicos: financeiro.totalServicos,
+      totalPecas: financeiro.totalPecas,
+      totalGeral: financeiro.totalGeral,
+    };
 
     return {
       os,
       veiculo,
       cliente,
-      servicos: servicosComDetalhes,
-      pecas: pecasComDetalhes,
-      totalServicos,
-      totalPecas,
-      totalGeral: totalServicos + totalPecas
+      servicos: financeiro.servicos,
+      pecas: financeiro.pecas,
+      totalServicos: totais.totalServicos,
+      totalPecas: totais.totalPecas,
+      totalGeral: totais.totalGeral,
     };
   });
 

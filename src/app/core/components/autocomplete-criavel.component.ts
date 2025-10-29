@@ -28,6 +28,17 @@ export type AutocompleteValue<T = unknown> = AutocompleteOption<T> | null;
   host: {
     class: 'block w-full',
   },
+  styles: [
+    `:host(.is-invalid) input {
+        border-color: rgba(248, 113, 113, 0.9);
+        box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.35);
+      }
+      :host(.is-invalid) input:focus {
+        border-color: rgba(248, 113, 113, 1);
+        box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.35);
+      }
+    `,
+  ],
   template: `
     <div class="relative">
       <input
@@ -96,9 +107,14 @@ export class AutocompleteCriavelComponent<T = unknown> implements ControlValueAc
   @Input() allowCustom = true;
   @Input() disabled = false;
   @Input() name?: string;
+  @Input() invalid = false;
 
   @HostBinding('attr.name') get hostName() {
     return this.name ?? null;
+  }
+
+  @HostBinding('class.is-invalid') get hostInvalid() {
+    return this.invalid;
   }
 
   search = signal('');

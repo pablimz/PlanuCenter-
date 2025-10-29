@@ -4,8 +4,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { DataService } from '../core/services/data.service';
+import { NotificationService } from '../core/services/notification.service';
 import { AutocompleteCriavelComponent, AutocompleteOption, AutocompleteValue } from '../core/components/autocomplete-criavel.component';
 import { Cliente, OrdemServico, OrdemServicoPayload, Peca, Servico, Veiculo } from '../core/models/models';
+import { calcularTotaisFinanceiros, montarResumoFinanceiroOrdem } from '../core/utils/ordem-financeiro';
 
 type StatusOrdem = OrdemServico['status'];
 
@@ -167,7 +169,8 @@ interface FormularioOrdem {
                 @if (editandoId()) {
                   <button
                     type="button"
-                    class="rounded-full border border-rose-400/60 bg-rose-500/10 px-5 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20"
+                    class="rounded-full border border-rose-400/60 bg-rose-500/10 px-5 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    [disabled]="salvando()"
                     (click)="excluirOrdem()"
                   >
                     Excluir ordem
@@ -186,8 +189,12 @@ interface FormularioOrdem {
                     [(ngModel)]="formularioOrdem.cliente"
                     (ngModelChange)="aoAlterarCliente($event)"
                     placeholder="Selecione ou cadastre um cliente"
+                    [invalid]="campoInvalido('cliente')"
                   ></app-autocomplete-criavel>
                 </div>
+                @if (campoInvalido('cliente')) {
+                  <p class="mt-1 text-xs text-rose-300">Informe um cliente.</p>
+                }
               </label>
 
               <label class="flex flex-col text-sm text-slate-200">
@@ -197,9 +204,14 @@ interface FormularioOrdem {
                     name="veiculo"
                     [options]="opcoesVeiculosDisponiveis()"
                     [(ngModel)]="formularioOrdem.veiculo"
+                    (ngModelChange)="aoAlterarVeiculo($event)"
                     placeholder="Informe ou crie um veículo"
+                    [invalid]="campoInvalido('veiculo')"
                   ></app-autocomplete-criavel>
                 </div>
+                @if (campoInvalido('veiculo')) {
+                  <p class="mt-1 text-xs text-rose-300">Informe um veículo.</p>
+                }
               </label>
 
               <label class="flex flex-col text-sm text-slate-200">
@@ -207,10 +219,15 @@ interface FormularioOrdem {
                 <input
                   type="date"
                   class="mt-2 rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-400 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+                  [ngClass]="{'border-rose-500/60 focus:border-rose-400 focus:ring-rose-400/40': campoInvalido('dataEntrada')}"
                   [(ngModel)]="formularioOrdem.dataEntrada"
                   name="dataEntrada"
+                  (ngModelChange)="aoAlterarDataEntrada($event)"
                   required
                 />
+                @if (campoInvalido('dataEntrada')) {
+                  <p class="mt-1 text-xs text-rose-300">Informe a data de entrada.</p>
+                }
               </label>
 
               <label class="flex flex-col text-sm text-slate-200">
@@ -221,9 +238,14 @@ interface FormularioOrdem {
                     [options]="statusOptions"
                     [allowCustom]="false"
                     [(ngModel)]="formularioOrdem.status"
+                    (ngModelChange)="aoAlterarStatus($event)"
                     placeholder="Selecione um status"
+                    [invalid]="campoInvalido('status')"
                   ></app-autocomplete-criavel>
                 </div>
+                @if (campoInvalido('status')) {
+                  <p class="mt-1 text-xs text-rose-300">Selecione um status.</p>
+                }
               </label>
 
               <label class="md:col-span-2 flex flex-col text-sm text-slate-200">
@@ -237,13 +259,17 @@ interface FormularioOrdem {
                 ></textarea>
               </label>
 
-              <div class="md:col-span-2 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5">
+              <div class="md:col-span-2 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5" [class:border-rose-500/60]="campoInvalido('servicos')">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-200">Serviços aplicados</h4>
                   <button type="button" class="rounded-full border border-white/15 bg-white/10 px-4 py-1 text-xs font-semibold text-slate-100 transition hover:bg-white/20" (click)="adicionarServico()">
                     + Adicionar serviço
                   </button>
                 </div>
+
+                @if (campoInvalido('servicos')) {
+                  <p class="text-xs text-rose-300">Inclua ao menos um serviço ou peça.</p>
+                }
 
                 @if (formularioOrdem.servicos.length) {
                   <div class="space-y-3">
@@ -294,13 +320,17 @@ interface FormularioOrdem {
                 }
               </div>
 
-              <div class="md:col-span-2 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5">
+              <div class="md:col-span-2 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5" [class:border-rose-500/60]="campoInvalido('pecas')">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-200">Peças utilizadas</h4>
                   <button type="button" class="rounded-full border border-white/15 bg-white/10 px-4 py-1 text-xs font-semibold text-slate-100 transition hover:bg-white/20" (click)="adicionarPeca()">
                     + Adicionar peça
                   </button>
                 </div>
+
+                @if (campoInvalido('pecas')) {
+                  <p class="text-xs text-rose-300">Inclua ao menos um serviço ou peça.</p>
+                }
 
                 @if (formularioOrdem.pecas.length) {
                   <div class="space-y-3">
@@ -369,9 +399,11 @@ interface FormularioOrdem {
               <div class="md:col-span-2 flex flex-wrap justify-end gap-3">
                 <button
                   type="submit"
-                  class="rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-950/40 transition hover:from-sky-400 hover:to-indigo-400"
+                  class="rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-950/40 transition hover:from-sky-400 hover:to-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  [disabled]="salvando()"
+                  [attr.aria-busy]="salvando()"
                 >
-                  {{ editandoId() ? 'Atualizar ordem' : 'Salvar ordem' }}
+                  {{ salvando() ? 'Salvando...' : editandoId() ? 'Atualizar ordem' : 'Salvar ordem' }}
                 </button>
               </div>
             </form>
@@ -488,6 +520,7 @@ interface FormularioOrdem {
 export class OrdensServicoComponent {
   private dataService = inject(DataService);
   private router = inject(Router);
+  private notifications = inject(NotificationService);
 
   ordensServico = this.dataService.ordensServico;
   veiculos = this.dataService.veiculos;
@@ -499,6 +532,9 @@ export class OrdensServicoComponent {
   ordemSelecionadaId = signal<number | null>(null);
   filtroBusca = signal('');
   editandoId = signal<number | null>(null);
+  salvando = signal(false);
+  tentouSalvar = signal(false);
+  camposInvalidos = signal<ReadonlySet<string>>(new Set<string>());
 
   formularioOrdem: FormularioOrdem = this.criarFormularioInicial();
 
@@ -521,21 +557,14 @@ export class OrdensServicoComponent {
     return ordens.map(ordem => {
       const cliente = clientes.find(item => item.id === ordem.clienteId);
       const veiculo = veiculos.find(item => item.id === ordem.veiculoId);
-      const totalServicos = ordem.servicos.reduce((total, item) => {
-        const servico = servicos.find(serv => serv.id === item.id);
-        return total + (servico?.preco ?? 0) * item.qtde;
-      }, 0);
-      const totalPecas = ordem.pecas.reduce((total, item) => {
-        const peca = pecas.find(pec => pec.id === item.id);
-        return total + (peca?.preco ?? 0) * item.qtde;
-      }, 0);
+      const totais = ordem.totais ?? calcularTotaisFinanceiros(ordem, servicos, pecas);
       return {
         ordem,
         cliente,
         veiculo,
-        totalServicos,
-        totalPecas,
-        totalGeral: totalServicos + totalPecas,
+        totalServicos: totais.totalServicos,
+        totalPecas: totais.totalPecas,
+        totalGeral: totais.totalGeral,
       };
     });
   });
@@ -572,46 +601,24 @@ export class OrdensServicoComponent {
 
     const veiculo = this.veiculos().find(item => item.id === ordem.veiculoId);
     const cliente = this.clientes().find(item => item.id === ordem.clienteId);
-
-    let totalServicos = 0;
-    const servicosDetalhados = ordem.servicos.map(item => {
-      const servico = this.servicos().find(serv => serv.id === item.id);
-      const preco = servico?.preco ?? 0;
-      const subtotal = preco * item.qtde;
-      totalServicos += subtotal;
-      return {
-        id: item.id,
-        descricao: servico?.descricao ?? null,
-        preco,
-        qtde: item.qtde,
-        subtotal,
-      };
-    });
-
-    let totalPecas = 0;
-    const pecasDetalhadas = ordem.pecas.map(item => {
-      const peca = this.pecas().find(p => p.id === item.id);
-      const preco = peca?.preco ?? 0;
-      const subtotal = preco * item.qtde;
-      totalPecas += subtotal;
-      return {
-        id: item.id,
-        nome: peca?.nome ?? null,
-        preco,
-        qtde: item.qtde,
-        subtotal,
-      };
-    });
+    const servicosCatalogo = this.servicos();
+    const pecasCatalogo = this.pecas();
+    const financeiro = montarResumoFinanceiroOrdem(ordem, servicosCatalogo, pecasCatalogo);
+    const totais = ordem.totais ?? {
+      totalServicos: financeiro.totalServicos,
+      totalPecas: financeiro.totalPecas,
+      totalGeral: financeiro.totalGeral,
+    };
 
     return {
       ordem,
       veiculo,
       cliente,
-      servicos: servicosDetalhados,
-      pecas: pecasDetalhadas,
-      totalServicos,
-      totalPecas,
-      totalGeral: totalServicos + totalPecas,
+      servicos: financeiro.servicos,
+      pecas: financeiro.pecas,
+      totalServicos: totais.totalServicos,
+      totalPecas: totais.totalPecas,
+      totalGeral: totais.totalGeral,
     };
   });
 
@@ -624,6 +631,7 @@ export class OrdensServicoComponent {
     this.formularioOrdem = this.criarFormularioInicial();
     this.modoVisualizacao.set('formulario');
     this.ordemSelecionadaId.set(null);
+    this.limparValidacaoCampos();
   }
 
   async editarOrdem(id: number) {
@@ -636,8 +644,10 @@ export class OrdensServicoComponent {
       this.formularioOrdem = this.criarFormularioAPartirDaOrdem(ordem);
       this.modoVisualizacao.set('formulario');
       this.ordemSelecionadaId.set(null);
+      this.limparValidacaoCampos();
     } catch (error) {
       console.error('Erro ao carregar ordem para edição', error);
+      this.notifications.error('Não foi possível carregar a ordem selecionada para edição.');
     }
   }
 
@@ -645,12 +655,15 @@ export class OrdensServicoComponent {
     this.ordemSelecionadaId.set(id);
     this.modoVisualizacao.set('resumo');
     this.editandoId.set(null);
+    this.limparValidacaoCampos();
   }
 
   voltarParaLista() {
     this.modoVisualizacao.set('lista');
     this.ordemSelecionadaId.set(null);
     this.editandoId.set(null);
+    this.formularioOrdem = this.criarFormularioInicial();
+    this.limparValidacaoCampos();
   }
 
   aoAlterarCliente(selecao: SelecaoCriavel<Cliente>) {
@@ -662,6 +675,22 @@ export class OrdensServicoComponent {
         : null
       : null;
     this.formularioOrdem = { ...this.formularioOrdem, cliente: selecao, veiculo: veiculoAjustado };
+    this.removerCampoInvalido('cliente');
+  }
+
+  aoAlterarVeiculo(selecao: SelecaoCriavel<Veiculo>) {
+    this.formularioOrdem = { ...this.formularioOrdem, veiculo: selecao };
+    this.removerCampoInvalido('veiculo');
+  }
+
+  aoAlterarStatus(selecao: SelecaoCriavel<{ valor: StatusOrdem }>) {
+    this.formularioOrdem = { ...this.formularioOrdem, status: selecao };
+    this.removerCampoInvalido('status');
+  }
+
+  aoAlterarDataEntrada(valor: string) {
+    this.formularioOrdem = { ...this.formularioOrdem, dataEntrada: valor };
+    this.removerCampoInvalido('dataEntrada');
   }
 
   opcoesClientes(): AutocompleteOption<Cliente>[] {
@@ -697,6 +726,7 @@ export class OrdensServicoComponent {
   adicionarServico() {
     const servicos = [...this.formularioOrdem.servicos, this.criarItemFormulario<Servico>()];
     this.formularioOrdem = { ...this.formularioOrdem, servicos };
+    this.atualizarIndicadoresItens();
   }
 
   atualizarServicoSelecionado(index: number, selecao: SelecaoCriavel<Servico>) {
@@ -708,6 +738,7 @@ export class OrdensServicoComponent {
       return { ...item, selecao, valorUnitario };
     });
     this.formularioOrdem = { ...this.formularioOrdem, servicos };
+    this.atualizarIndicadoresItens();
   }
 
   atualizarQuantidadeServico(index: number, quantidade: number) {
@@ -716,6 +747,7 @@ export class OrdensServicoComponent {
       idx === index ? { ...item, qtde: valor } : item
     );
     this.formularioOrdem = { ...this.formularioOrdem, servicos };
+    this.atualizarIndicadoresItens();
   }
 
   atualizarValorServico(index: number, valor: number) {
@@ -724,16 +756,19 @@ export class OrdensServicoComponent {
       idx === index ? { ...item, valorUnitario: unitario } : item
     );
     this.formularioOrdem = { ...this.formularioOrdem, servicos };
+    this.atualizarIndicadoresItens();
   }
 
   removerServico(index: number) {
     const servicos = this.formularioOrdem.servicos.filter((_, idx) => idx !== index);
     this.formularioOrdem = { ...this.formularioOrdem, servicos: servicos.length ? servicos : [this.criarItemFormulario<Servico>()] };
+    this.atualizarIndicadoresItens();
   }
 
   adicionarPeca() {
     const pecas = [...this.formularioOrdem.pecas, this.criarItemFormulario<Peca>()];
     this.formularioOrdem = { ...this.formularioOrdem, pecas };
+    this.atualizarIndicadoresItens();
   }
 
   atualizarPecaSelecionada(index: number, selecao: SelecaoCriavel<Peca>) {
@@ -745,6 +780,7 @@ export class OrdensServicoComponent {
       return { ...item, selecao, valorUnitario };
     });
     this.formularioOrdem = { ...this.formularioOrdem, pecas };
+    this.atualizarIndicadoresItens();
   }
 
   atualizarQuantidadePeca(index: number, quantidade: number) {
@@ -753,6 +789,7 @@ export class OrdensServicoComponent {
       idx === index ? { ...item, qtde: valor } : item
     );
     this.formularioOrdem = { ...this.formularioOrdem, pecas };
+    this.atualizarIndicadoresItens();
   }
 
   atualizarValorPeca(index: number, valor: number) {
@@ -761,11 +798,17 @@ export class OrdensServicoComponent {
       idx === index ? { ...item, valorUnitario: unitario } : item
     );
     this.formularioOrdem = { ...this.formularioOrdem, pecas };
+    this.atualizarIndicadoresItens();
   }
 
   removerPeca(index: number) {
     const pecas = this.formularioOrdem.pecas.filter((_, idx) => idx !== index);
     this.formularioOrdem = { ...this.formularioOrdem, pecas };
+    this.atualizarIndicadoresItens();
+  }
+
+  campoInvalido(nome: string) {
+    return this.camposInvalidos().has(nome);
   }
 
   calcularTotalServicosSelecionados() {
@@ -789,23 +832,99 @@ export class OrdensServicoComponent {
   }
 
   async salvarOrdem() {
-    const clienteSelecao = this.formularioOrdem.cliente;
-    const veiculoSelecao = this.formularioOrdem.veiculo;
-    const statusSelecao = this.formularioOrdem.status;
-    if (
-      !clienteSelecao ||
-      !clienteSelecao.label?.trim() ||
-      !veiculoSelecao ||
-      !veiculoSelecao.label?.trim() ||
-      !this.formularioOrdem.dataEntrada ||
-      !statusSelecao
-    ) {
+    this.tentouSalvar.set(true);
+    const avaliacao = this.avaliarFormulario();
+    this.atualizarCamposInvalidos(avaliacao.camposInvalidos);
+
+    if (!avaliacao.payload) {
+      if (avaliacao.mensagensErro.length) {
+        this.notifications.error(avaliacao.mensagensErro.join(' '));
+      }
       return;
     }
 
-    const statusValor = statusSelecao.data?.valor ?? (statusSelecao.label as StatusOrdem | undefined);
-    if (!statusValor) {
+    this.salvando.set(true);
+    try {
+      if (this.editandoId()) {
+        await this.dataService.atualizarOrdemServico(this.editandoId()!, avaliacao.payload);
+        this.notifications.success('Ordem de serviço atualizada com sucesso.');
+      } else {
+        await this.dataService.criarOrdemServico(avaliacao.payload);
+        this.notifications.success('Ordem de serviço criada com sucesso.');
+      }
+      this.voltarParaLista();
+    } catch (error) {
+      console.error('Erro ao salvar ordem de serviço', error);
+      const mensagem = error instanceof Error ? error.message : 'Não foi possível salvar a ordem de serviço.';
+      this.notifications.error(mensagem);
+    } finally {
+      this.salvando.set(false);
+    }
+  }
+
+  async excluirOrdem() {
+    const id = this.editandoId();
+    if (!id) {
       return;
+    }
+
+    const confirmar = window.confirm('Deseja realmente excluir esta ordem de serviço?');
+    if (!confirmar) {
+      return;
+    }
+
+    try {
+      this.salvando.set(true);
+      await this.dataService.excluirOrdemServico(id);
+      this.notifications.success('Ordem de serviço excluída com sucesso.');
+      this.voltarParaLista();
+    } catch (error) {
+      console.error('Erro ao excluir ordem de serviço', error);
+      this.notifications.error('Não foi possível excluir a ordem de serviço.');
+    } finally {
+      this.salvando.set(false);
+    }
+  }
+
+  abrirResumoCompleto() {
+    const id = this.ordemSelecionadaId();
+    if (id == null) {
+      return;
+    }
+    void this.router.navigate(['/ordens-servico', id]);
+  }
+
+  private avaliarFormulario(): {
+    payload?: OrdemServicoPayload;
+    camposInvalidos: string[];
+    mensagensErro: string[];
+  } {
+    const camposInvalidos: string[] = [];
+    const mensagensErro: string[] = [];
+
+    const clienteSelecao = this.formularioOrdem.cliente;
+    if (!clienteSelecao || !clienteSelecao.label?.trim()) {
+      camposInvalidos.push('cliente');
+      mensagensErro.push('Informe um cliente.');
+    }
+
+    const veiculoSelecao = this.formularioOrdem.veiculo;
+    if (!veiculoSelecao || !veiculoSelecao.label?.trim()) {
+      camposInvalidos.push('veiculo');
+      mensagensErro.push('Informe um veículo.');
+    }
+
+    const dataEntrada = this.formularioOrdem.dataEntrada?.trim();
+    if (!dataEntrada) {
+      camposInvalidos.push('dataEntrada');
+      mensagensErro.push('Informe a data de entrada.');
+    }
+
+    const statusSelecao = this.formularioOrdem.status;
+    const statusValor = statusSelecao?.data?.valor ?? (statusSelecao?.label as StatusOrdem | undefined);
+    if (!statusValor) {
+      camposInvalidos.push('status');
+      mensagensErro.push('Selecione um status válido.');
     }
 
     const servicos = this.formularioOrdem.servicos
@@ -826,56 +945,62 @@ export class OrdensServicoComponent {
         qtde: Math.max(1, Number(item.qtde) || 1),
       }));
 
+    if (!servicos.length && !pecas.length) {
+      camposInvalidos.push('servicos', 'pecas');
+      mensagensErro.push('Inclua ao menos um serviço ou peça.');
+    }
+
+    if (mensagensErro.length) {
+      return { camposInvalidos, mensagensErro };
+    }
+
     const payload: OrdemServicoPayload = {
       cliente: {
-        id: this.obterIdNumero(clienteSelecao),
-        nome: clienteSelecao.label.trim(),
+        id: this.obterIdNumero(clienteSelecao!),
+        nome: clienteSelecao!.label!.trim(),
       },
-      veiculo: this.montarDadosVeiculo(veiculoSelecao),
-      dataEntrada: this.formularioOrdem.dataEntrada,
-      status: statusValor,
+      veiculo: this.montarDadosVeiculo(veiculoSelecao!),
+      dataEntrada: dataEntrada!,
+      status: statusValor!,
       observacoes: this.formularioOrdem.observacoes.trim() || undefined,
       servicos,
       pecas,
     };
 
-    try {
-      if (this.editandoId()) {
-        await this.dataService.atualizarOrdemServico(this.editandoId()!, payload);
-      } else {
-        await this.dataService.criarOrdemServico(payload);
-      }
-      this.voltarParaLista();
-    } catch (error) {
-      console.error('Erro ao salvar ordem de serviço', error);
+    return { payload, camposInvalidos: [], mensagensErro: [] };
+  }
+
+  private atualizarCamposInvalidos(campos: string[]) {
+    this.camposInvalidos.set(new Set<string>(campos));
+  }
+
+  private removerCampoInvalido(nome: string) {
+    const atual = this.camposInvalidos();
+    if (!atual.has(nome)) {
+      return;
+    }
+    const atualizado = new Set(atual);
+    atualizado.delete(nome);
+    this.camposInvalidos.set(atualizado);
+  }
+
+  private atualizarIndicadoresItens() {
+    const possuiServicosValidos = this.formularioOrdem.servicos.some(
+      item => item.selecao && item.selecao.label?.trim() && item.qtde > 0,
+    );
+    const possuiPecasValidas = this.formularioOrdem.pecas.some(
+      item => item.selecao && item.selecao.label?.trim() && item.qtde > 0,
+    );
+
+    if (possuiServicosValidos || possuiPecasValidas) {
+      this.removerCampoInvalido('servicos');
+      this.removerCampoInvalido('pecas');
     }
   }
 
-  async excluirOrdem() {
-    const id = this.editandoId();
-    if (!id) {
-      return;
-    }
-
-    const confirmar = window.confirm('Deseja realmente excluir esta ordem de serviço?');
-    if (!confirmar) {
-      return;
-    }
-
-    try {
-      await this.dataService.excluirOrdemServico(id);
-      this.voltarParaLista();
-    } catch (error) {
-      console.error('Erro ao excluir ordem de serviço', error);
-    }
-  }
-
-  abrirResumoCompleto() {
-    const id = this.ordemSelecionadaId();
-    if (id == null) {
-      return;
-    }
-    void this.router.navigate(['/ordens-servico', id]);
+  private limparValidacaoCampos() {
+    this.atualizarCamposInvalidos([]);
+    this.tentouSalvar.set(false);
   }
 
   private criarFormularioInicial(): FormularioOrdem {

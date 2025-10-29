@@ -1,7 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { Cliente, OrdemServico, OrdemServicoPayload, Peca, Servico, Veiculo } from '../models/models';
+import { ApiResponse, Cliente, OrdemServico, OrdemServicoPayload, Peca, Servico, Veiculo } from '../models/models';
 
 type OfflineDatabase = {
   clientes: Cliente[];
@@ -100,6 +100,19 @@ export class DataService {
     void this.carregarDadosIniciais();
   }
 
+  private obterDados<T>(resposta: ApiResponse<T>): T {
+    if (!resposta.success || typeof resposta.data === 'undefined') {
+      throw new Error(resposta.message ?? 'Operação não pôde ser concluída.');
+    }
+    return resposta.data;
+  }
+
+  private garantirSucesso(resposta: ApiResponse<unknown>) {
+    if (!resposta.success) {
+      throw new Error(resposta.message ?? 'Operação não pôde ser concluída.');
+    }
+  }
+
   async carregarDadosIniciais() {
     await Promise.all([
       this.carregarClientes(),
@@ -116,7 +129,8 @@ export class DataService {
       return;
     }
     try {
-      const clientes = await firstValueFrom(this.http.get<Cliente[]>(`${this.apiUrl}/clientes`));
+      const resposta = await firstValueFrom(this.http.get<ApiResponse<Cliente[]>>(`${this.apiUrl}/clientes`));
+      const clientes = this.obterDados(resposta);
       this.atualizarClientes(clientes);
     } catch (error) {
       console.error('Erro ao carregar clientes', error);
@@ -130,7 +144,8 @@ export class DataService {
     }
 
     try {
-      const novo = await firstValueFrom(this.http.post<Cliente>(`${this.apiUrl}/clientes`, dados));
+      const resposta = await firstValueFrom(this.http.post<ApiResponse<Cliente>>(`${this.apiUrl}/clientes`, dados));
+      const novo = this.obterDados(resposta);
       this.clientes.update(lista => [novo, ...lista.filter(cliente => cliente.id !== novo.id)]);
       this.offlineState.clientes = deepClone(this.clientes());
       return novo;
@@ -147,7 +162,8 @@ export class DataService {
     }
 
     try {
-      const atualizado = await firstValueFrom(this.http.put<Cliente>(`${this.apiUrl}/clientes/${id}`, dados));
+      const resposta = await firstValueFrom(this.http.put<ApiResponse<Cliente>>(`${this.apiUrl}/clientes/${id}`, dados));
+      const atualizado = this.obterDados(resposta);
       this.clientes.update(lista => lista.map(cliente => (cliente.id === id ? atualizado : cliente)));
       this.offlineState.clientes = deepClone(this.clientes());
       await this.carregarVeiculos();
@@ -165,7 +181,8 @@ export class DataService {
     }
 
     try {
-      await firstValueFrom(this.http.delete(`${this.apiUrl}/clientes/${id}`));
+      const resposta = await firstValueFrom(this.http.delete<ApiResponse<unknown>>(`${this.apiUrl}/clientes/${id}`));
+      this.garantirSucesso(resposta);
       this.clientes.update(lista => lista.filter(cliente => cliente.id !== id));
       this.veiculos.update(lista => lista.filter(veiculo => veiculo.clienteId !== id));
       this.ordensServico.update(lista => lista.filter(ordem => ordem.clienteId !== id));
@@ -186,7 +203,8 @@ export class DataService {
       return;
     }
     try {
-      const veiculos = await firstValueFrom(this.http.get<Veiculo[]>(`${this.apiUrl}/veiculos`));
+      const resposta = await firstValueFrom(this.http.get<ApiResponse<Veiculo[]>>(`${this.apiUrl}/veiculos`));
+      const veiculos = this.obterDados(resposta);
       this.atualizarVeiculos(veiculos);
     } catch (error) {
       console.error('Erro ao carregar veículos', error);
@@ -200,7 +218,8 @@ export class DataService {
     }
 
     try {
-      const novo = await firstValueFrom(this.http.post<Veiculo>(`${this.apiUrl}/veiculos`, dados));
+      const resposta = await firstValueFrom(this.http.post<ApiResponse<Veiculo>>(`${this.apiUrl}/veiculos`, dados));
+      const novo = this.obterDados(resposta);
       this.veiculos.update(lista => [novo, ...lista.filter(veiculo => veiculo.id !== novo.id)]);
       this.offlineState.veiculos = deepClone(this.veiculos());
       return novo;
@@ -217,7 +236,8 @@ export class DataService {
     }
 
     try {
-      const atualizado = await firstValueFrom(this.http.put<Veiculo>(`${this.apiUrl}/veiculos/${id}`, dados));
+      const resposta = await firstValueFrom(this.http.put<ApiResponse<Veiculo>>(`${this.apiUrl}/veiculos/${id}`, dados));
+      const atualizado = this.obterDados(resposta);
       this.veiculos.update(lista => lista.map(veiculo => (veiculo.id === id ? atualizado : veiculo)));
       this.offlineState.veiculos = deepClone(this.veiculos());
       return atualizado;
@@ -234,7 +254,8 @@ export class DataService {
     }
 
     try {
-      await firstValueFrom(this.http.delete(`${this.apiUrl}/veiculos/${id}`));
+      const resposta = await firstValueFrom(this.http.delete<ApiResponse<unknown>>(`${this.apiUrl}/veiculos/${id}`));
+      this.garantirSucesso(resposta);
       this.veiculos.update(lista => lista.filter(veiculo => veiculo.id !== id));
       this.ordensServico.update(lista => lista.filter(ordem => ordem.veiculoId !== id));
       this.offlineState.veiculos = deepClone(this.veiculos());
@@ -253,7 +274,8 @@ export class DataService {
       return;
     }
     try {
-      const pecas = await firstValueFrom(this.http.get<Peca[]>(`${this.apiUrl}/pecas`));
+      const resposta = await firstValueFrom(this.http.get<ApiResponse<Peca[]>>(`${this.apiUrl}/pecas`));
+      const pecas = this.obterDados(resposta);
       this.atualizarPecas(pecas);
     } catch (error) {
       console.error('Erro ao carregar peças', error);
@@ -267,7 +289,8 @@ export class DataService {
     }
 
     try {
-      const nova = await firstValueFrom(this.http.post<Peca>(`${this.apiUrl}/pecas`, dados));
+      const resposta = await firstValueFrom(this.http.post<ApiResponse<Peca>>(`${this.apiUrl}/pecas`, dados));
+      const nova = this.obterDados(resposta);
       this.pecas.update(lista => [nova, ...lista.filter(peca => peca.id !== nova.id)]);
       this.offlineState.pecas = deepClone(this.pecas());
       return nova;
@@ -284,7 +307,8 @@ export class DataService {
     }
 
     try {
-      const atualizada = await firstValueFrom(this.http.put<Peca>(`${this.apiUrl}/pecas/${id}`, dados));
+      const resposta = await firstValueFrom(this.http.put<ApiResponse<Peca>>(`${this.apiUrl}/pecas/${id}`, dados));
+      const atualizada = this.obterDados(resposta);
       this.pecas.update(lista => lista.map(peca => (peca.id === id ? atualizada : peca)));
       this.offlineState.pecas = deepClone(this.pecas());
       return atualizada;
@@ -301,7 +325,8 @@ export class DataService {
     }
 
     try {
-      await firstValueFrom(this.http.delete(`${this.apiUrl}/pecas/${id}`));
+      const resposta = await firstValueFrom(this.http.delete<ApiResponse<unknown>>(`${this.apiUrl}/pecas/${id}`));
+      this.garantirSucesso(resposta);
       this.pecas.update(lista => lista.filter(peca => peca.id !== id));
       this.ordensServico.update(lista =>
         lista.map(ordem => ({
@@ -325,7 +350,8 @@ export class DataService {
       return;
     }
     try {
-      const servicos = await firstValueFrom(this.http.get<Servico[]>(`${this.apiUrl}/servicos`));
+      const resposta = await firstValueFrom(this.http.get<ApiResponse<Servico[]>>(`${this.apiUrl}/servicos`));
+      const servicos = this.obterDados(resposta);
       this.atualizarServicos(servicos);
     } catch (error) {
       console.error('Erro ao carregar serviços', error);
@@ -339,7 +365,8 @@ export class DataService {
       return;
     }
     try {
-      const ordens = await firstValueFrom(this.http.get<OrdemServico[]>(`${this.apiUrl}/ordens-servico`));
+      const resposta = await firstValueFrom(this.http.get<ApiResponse<OrdemServico[]>>(`${this.apiUrl}/ordens-servico`));
+      const ordens = this.obterDados(resposta);
       this.atualizarOrdens(ordens);
     } catch (error) {
       console.error('Erro ao carregar ordens de serviço', error);
@@ -353,7 +380,8 @@ export class DataService {
     }
 
     try {
-      const nova = await firstValueFrom(this.http.post<OrdemServico>(`${this.apiUrl}/ordens-servico`, dados));
+      const resposta = await firstValueFrom(this.http.post<ApiResponse<OrdemServico>>(`${this.apiUrl}/ordens-servico`, dados));
+      const nova = this.obterDados(resposta);
       this.ordensServico.update(lista => [nova, ...lista.filter(ordem => ordem.id !== nova.id)]);
       this.offlineState.ordensServico = deepClone(this.ordensServico());
       await this.recarregarRelacionados();
@@ -371,7 +399,8 @@ export class DataService {
     }
 
     try {
-      const atualizada = await firstValueFrom(this.http.put<OrdemServico>(`${this.apiUrl}/ordens-servico/${id}`, dados));
+      const resposta = await firstValueFrom(this.http.put<ApiResponse<OrdemServico>>(`${this.apiUrl}/ordens-servico/${id}`, dados));
+      const atualizada = this.obterDados(resposta);
       this.ordensServico.update(lista => lista.map(ordem => (ordem.id === id ? atualizada : ordem)));
       this.offlineState.ordensServico = deepClone(this.ordensServico());
       await this.recarregarRelacionados();
@@ -389,7 +418,8 @@ export class DataService {
     }
 
     try {
-      await firstValueFrom(this.http.delete(`${this.apiUrl}/ordens-servico/${id}`));
+      const resposta = await firstValueFrom(this.http.delete<ApiResponse<unknown>>(`${this.apiUrl}/ordens-servico/${id}`));
+      this.garantirSucesso(resposta);
       this.ordensServico.update(lista => lista.filter(ordem => ordem.id !== id));
       this.offlineState.ordensServico = deepClone(this.ordensServico());
       return true;
@@ -406,7 +436,8 @@ export class DataService {
     }
 
     try {
-      const ordem = await firstValueFrom(this.http.get<OrdemServico>(`${this.apiUrl}/ordens-servico/${id}`));
+      const resposta = await firstValueFrom(this.http.get<ApiResponse<OrdemServico>>(`${this.apiUrl}/ordens-servico/${id}`));
+      const ordem = this.obterDados(resposta);
       this.ordensServico.update(lista => [ordem, ...lista.filter(item => item.id !== ordem.id)]);
       this.offlineState.ordensServico = deepClone(this.ordensServico());
       return ordem;

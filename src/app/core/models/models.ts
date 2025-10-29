@@ -1,5 +1,18 @@
 export type ItemTipo = 'peca' | 'servico';
 
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  details?: unknown;
+}
+
+export interface TotaisOrdem {
+  totalServicos: number;
+  totalPecas: number;
+  totalGeral: number;
+}
+
 export interface Peca {
   id: number;
   nome: string;
@@ -40,6 +53,7 @@ export interface OrdemServico {
   servicos: { id: number; qtde: number }[];
   pecas: { id: number; qtde: number }[];
   observacoes?: string;
+  totais?: TotaisOrdem;
 }
 
 export interface OrdemServicoItemPayload {
