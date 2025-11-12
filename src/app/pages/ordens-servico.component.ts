@@ -1027,7 +1027,7 @@ export class OrdensServicoComponent {
         const selecao: SelecaoCriavel<Servico> = servico
           ? { id: servico.id, label: this.formatarServicoLabel(servico), data: servico }
           : { id: item.id, label: `Serviço #${item.id}` };
-        const valorUnitario = servico?.preco ?? item.preco ?? 0;
+        const valorUnitario = servico?.preco ?? 0;
         this.servicosFormArray.push(
           this.criarItemFormulario<Servico>({ selecao, qtde: item.qtde, valorUnitario }),
         );
@@ -1042,7 +1042,7 @@ export class OrdensServicoComponent {
       const selecao: SelecaoCriavel<Peca> = peca
         ? { id: peca.id, label: this.formatarPecaLabel(peca), data: peca }
         : { id: item.id, label: `Peça #${item.id}` };
-      const valorUnitario = peca?.preco ?? item.preco ?? 0;
+      const valorUnitario = peca?.preco ?? 0;
       this.pecasFormArray.push(
         this.criarItemFormulario<Peca>({ selecao, qtde: item.qtde, valorUnitario }),
       );

@@ -429,7 +429,7 @@ export class DataService {
     }
     try {
       const resposta = await firstValueFrom(this.http.get<ApiResponse<OrdemServico[]>>(`${this.apiUrl}/ordens-servico`));
-      const ordens = this.obterDados(resposta);
+      const ordens = this.obterDados(resposta).map(ordem => this.normalizarOrdem(ordem));
       this.atualizarOrdens(ordens);
       this.desativarModoOffline();
     } catch (error) {
@@ -446,7 +446,7 @@ export class DataService {
 
     try {
       const resposta = await firstValueFrom(this.http.post<ApiResponse<OrdemServico>>(`${this.apiUrl}/ordens-servico`, dados));
-      const nova = this.obterDados(resposta);
+      const nova = this.normalizarOrdem(this.obterDados(resposta));
       this.ordensServico.update(lista => [nova, ...lista.filter(ordem => ordem.id !== nova.id)]);
       this.offlineState.ordensServico = deepClone(this.ordensServico());
       await this.recarregarRelacionados();
@@ -464,7 +464,7 @@ export class DataService {
 
     try {
       const resposta = await firstValueFrom(this.http.put<ApiResponse<OrdemServico>>(`${this.apiUrl}/ordens-servico/${id}`, dados));
-      const atualizada = this.obterDados(resposta);
+      const atualizada = this.normalizarOrdem(this.obterDados(resposta));
       this.ordensServico.update(lista => lista.map(ordem => (ordem.id === id ? atualizada : ordem)));
       this.offlineState.ordensServico = deepClone(this.ordensServico());
       await this.recarregarRelacionados();
@@ -499,7 +499,7 @@ export class DataService {
 
     try {
       const resposta = await firstValueFrom(this.http.get<ApiResponse<OrdemServico>>(`${this.apiUrl}/ordens-servico/${id}`));
-      const ordem = this.obterDados(resposta);
+      const ordem = this.normalizarOrdem(this.obterDados(resposta));
       this.ordensServico.update(lista => [ordem, ...lista.filter(item => item.id !== ordem.id)]);
       this.offlineState.ordensServico = deepClone(this.ordensServico());
       this.desativarModoOffline();
@@ -658,10 +658,51 @@ export class DataService {
   }
 
   private atualizarOrdens(ordens: OrdemServico[]) {
-    const ordenadas = sortByIdDesc(ordens);
+    const normalizadas = ordens.map(ordem => this.normalizarOrdem(ordem));
+    const ordenadas = sortByIdDesc(normalizadas);
     const copiadas = deepClone(ordenadas);
     this.ordensServico.set(copiadas);
     this.offlineState.ordensServico = deepClone(copiadas);
+  }
+
+  private normalizarItensOrdem(lista: unknown): { id: number; qtde: number }[] {
+    if (!Array.isArray(lista)) {
+      return [];
+    }
+
+    return lista
+      .map(item => {
+        const registro = item as { id?: unknown; qtde?: unknown };
+        const id = Number(registro.id);
+        if (!Number.isFinite(id) || id <= 0) {
+          return null;
+        }
+
+        const qtde = Math.max(1, Number(registro.qtde) || 1);
+        return { id, qtde };
+      })
+      .filter((valor): valor is { id: number; qtde: number } => valor !== null);
+  }
+
+  private normalizarOrdem(ordem: OrdemServico): OrdemServico {
+    const servicos = this.normalizarItensOrdem(ordem.servicos as unknown);
+    const pecas = this.normalizarItensOrdem(ordem.pecas as unknown);
+    const totaisOrigem = ordem.totais;
+    const totais = totaisOrigem
+      ? {
+          totalServicos: Number(totaisOrigem.totalServicos ?? 0),
+          totalPecas: Number(totaisOrigem.totalPecas ?? 0),
+          totalGeral: Number(totaisOrigem.totalGeral ?? 0),
+        }
+      : undefined;
+
+    return {
+      ...ordem,
+      servicos,
+      pecas,
+      observacoes: ordem.observacoes ?? undefined,
+      totais,
+    };
   }
 
   private criarClienteOffline(dados: Omit<Cliente, 'id'>) {
