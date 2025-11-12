@@ -37,7 +37,7 @@ type ServicoFormularioGroup = FormGroup<{
   descricao: FormControl<string>;
   qtde: FormControl<number>;
   preco: FormControl<number>;
-  selecao: FormControl<SelecaoCriavel<Servico>>;
+  selecao: FormControl<SelecaoCriavel<Servico> | null>;
 }>;
 
 type PecaFormularioGroup = FormGroup<{
@@ -45,14 +45,14 @@ type PecaFormularioGroup = FormGroup<{
   nome: FormControl<string>;
   qtde: FormControl<number>;
   preco: FormControl<number>;
-  selecao: FormControl<SelecaoCriavel<Peca>>;
+  selecao: FormControl<SelecaoCriavel<Peca> | null>;
 }>;
 
 type FormularioOrdemGroup = FormGroup<{
-  cliente: FormControl<SelecaoCriavel<Cliente>>;
-  veiculo: FormControl<SelecaoCriavel<Veiculo>>;
+  cliente: FormControl<SelecaoCriavel<Cliente> | null>;
+  veiculo: FormControl<SelecaoCriavel<Veiculo> | null>;
   dataEntrada: FormControl<string>;
-  status: FormControl<SelecaoCriavel<{ valor: StatusOrdem }>>;
+  status: FormControl<SelecaoCriavel<{ valor: StatusOrdem }> | null>;
   observacoes: FormControl<string>;
   servicos: FormArray<ServicoFormularioGroup>;
   pecas: FormArray<PecaFormularioGroup>;
@@ -719,7 +719,7 @@ export class OrdensServicoComponent {
     this.limparValidacaoCampos();
   }
 
-  aoAlterarCliente(selecao: SelecaoCriavel<Cliente>) {
+  aoAlterarCliente(selecao: SelecaoCriavel<Cliente> | null) {
     const clienteId = this.obterIdNumero(selecao);
     const veiculoControl = this.formularioOrdem.controls.veiculo;
     const veiculoAtual = veiculoControl.value;
@@ -1021,10 +1021,10 @@ export class OrdensServicoComponent {
   private criarFormularioInicial(): FormularioOrdemGroup {
     const hoje = new Date().toISOString().split('T')[0];
     return this.fb.group({
-      cliente: this.fb.control<SelecaoCriavel<Cliente>>(null),
-      veiculo: this.fb.control<SelecaoCriavel<Veiculo>>(null),
+      cliente: this.fb.control<SelecaoCriavel<Cliente> | null>(null),
+      veiculo: this.fb.control<SelecaoCriavel<Veiculo> | null>(null),
       dataEntrada: new FormControl<string>(hoje, { nonNullable: true, validators: [Validators.required] }),
-      status: this.fb.control<SelecaoCriavel<{ valor: StatusOrdem }>>(null),
+      status: this.fb.control<SelecaoCriavel<{ valor: StatusOrdem }> | null>(null),
       observacoes: new FormControl<string>('', { nonNullable: true }),
       servicos: this.fb.array<ServicoFormularioGroup>([this.criarServicoFormulario()]),
       pecas: this.fb.array<PecaFormularioGroup>([]),
@@ -1158,7 +1158,7 @@ export class OrdensServicoComponent {
         nonNullable: true,
         validators: [Validators.min(0)],
       }),
-      selecao: this.fb.control<SelecaoCriavel<Servico>>(dados?.selecao ?? null),
+      selecao: this.fb.control<SelecaoCriavel<Servico> | null>(dados?.selecao ?? null),
     }) as ServicoFormularioGroup;
 
     grupo.controls.selecao.valueChanges
@@ -1220,7 +1220,7 @@ export class OrdensServicoComponent {
         nonNullable: true,
         validators: [Validators.min(0)],
       }),
-      selecao: this.fb.control<SelecaoCriavel<Peca>>(dados?.selecao ?? null),
+      selecao: this.fb.control<SelecaoCriavel<Peca> | null>(dados?.selecao ?? null),
     }) as PecaFormularioGroup;
 
     grupo.controls.selecao.valueChanges
@@ -1276,11 +1276,11 @@ export class OrdensServicoComponent {
     return `${peca.nome} — ${this.formatarPreco(peca.preco)}`;
   }
 
-  private obterIdNumero(selecao: SelecaoCriavel): number | undefined {
+  private obterIdNumero(selecao: SelecaoCriavel | null | undefined): number | undefined {
     return typeof selecao?.id === 'number' ? selecao.id : undefined;
   }
 
-  private montarDadosVeiculo(selecao: SelecaoCriavel<Veiculo>): OrdemServicoPayload['veiculo'] {
+  private montarDadosVeiculo(selecao: SelecaoCriavel<Veiculo> | null): OrdemServicoPayload['veiculo'] {
     const label = selecao?.label?.trim() ?? '';
     const dados = selecao?.data;
     const clienteId = this.obterIdNumero(this.formularioOrdem.controls.cliente.value);
