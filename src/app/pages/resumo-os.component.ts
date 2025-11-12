@@ -19,7 +19,7 @@ import { map } from 'rxjs';
         <button (click)="print()" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-600 transition-colors">Imprimir / Salvar PDF</button>
       </div>
 
-      <div id="printableArea" class="bg-white p-8 rounded-lg shadow-lg max-w-4xl mx-auto">
+      <div id="printableArea" class="print-area bg-white p-8 rounded-lg shadow-lg max-w-4xl mx-auto">
         <header class="flex justify-between items-start border-b pb-6">
             <div>
               <h1 class="text-3xl font-bold text-gray-800">PlanuCenter</h1>
@@ -104,9 +104,9 @@ import { map } from 'rxjs';
                     <span class="text-gray-600">Total de Peças:</span>
                     <span class="font-medium text-gray-800">{{ details.totalPecas | currency:'BRL' }}</span>
                 </div>
-                <div class="flex justify-between border-t-2 pt-2 mt-2">
+                <div class="flex justify-between border-t-2 pt-2 mt-2 valor-total">
                     <span class="font-bold text-lg">VALOR TOTAL:</span>
-                    <span class="font-bold text-lg text-gray-900">{{ details.totalGeral | currency:'BRL' }}</span>
+                    <span class="font-bold text-lg valor">{{ details.totalGeral | currency:'BRL' }}</span>
                 </div>
             </div>
         </section>
