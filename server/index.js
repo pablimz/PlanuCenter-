@@ -552,12 +552,27 @@ async function handleRequest(req, res) {
       throw new HttpError(400, 'ID de cliente inválido.');
     }
 
-    const removido = await deleteCliente(id);
-    if (!removido) {
-      throw new HttpError(404, 'Cliente não encontrado.');
-    }
+    try {
+      const removido = await deleteCliente(id);
+      if (!removido) {
+        throw new HttpError(404, 'Cliente não encontrado.');
+      }
 
-    sendSuccess(res, 200, true);
+      sendSuccess(res, 200, { id });
+    } catch (error) {
+      if (error && typeof error === 'object') {
+        const codigo = error.code;
+        const detalhes = error.details ?? (typeof error.detail === 'string' ? error.detail : undefined);
+        if (codigo === 'FK_DEPENDENCIAS' || codigo === '23503') {
+          throw new HttpError(
+            409,
+            'Não é possível excluir o cliente porque existem veículos ou ordens de serviço vinculados.',
+            detalhes,
+          );
+        }
+      }
+      throw error;
+    }
     return;
   }
   

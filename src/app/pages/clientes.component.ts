@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { DataService } from '../core/services/data.service';
 import { Cliente } from '../core/models/models';
 
@@ -399,6 +400,15 @@ export class ClientesComponent {
       await this.dataService.excluirCliente(this.editandoId()!);
       this.voltarParaLista();
     } catch (error) {
+      if (error instanceof HttpErrorResponse && error.status === 409) {
+        const mensagemServidor =
+          typeof error.error?.message === 'string'
+            ? error.error.message
+            : 'Não é possível excluir este cliente porque existem veículos ou ordens de serviço vinculados.';
+        window.alert(mensagemServidor);
+      } else {
+        window.alert('Não foi possível excluir o cliente. Tente novamente.');
+      }
       console.error('Erro ao excluir cliente', error);
     }
   }

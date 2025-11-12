@@ -83,6 +83,32 @@ async function withTransaction(callback) {
   }
 }
 
+async function ensureCascadeConstraint({ table, constraint, definition }) {
+  await query(
+    `
+    DO $$
+    BEGIN
+      PERFORM 1
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      WHERE n.nspname = 'public'
+        AND t.relname = '${table}'
+        AND c.conname = '${constraint}'
+        AND c.confdeltype = 'c';
+
+      IF NOT FOUND THEN
+        ALTER TABLE public.${table} DROP CONSTRAINT IF EXISTS ${constraint};
+        ALTER TABLE public.${table}
+          ADD CONSTRAINT ${constraint}
+          ${definition};
+      END IF;
+    END
+    $$;
+  `,
+  );
+}
+
 async function initializeDatabase() {
   await query(`
     CREATE TABLE IF NOT EXISTS clientes (
@@ -192,6 +218,27 @@ async function initializeDatabase() {
   await query(`ALTER TABLE servicos ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
   await query(`ALTER TABLE ordens_servico ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
   await query(`ALTER TABLE ordens_servico ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+
+  await ensureCascadeConstraint({
+    table: 'veiculos',
+    constraint: 'veiculos_cliente_id_fkey',
+    definition: 'FOREIGN KEY (cliente_id) REFERENCES public.clientes(id) ON DELETE CASCADE',
+  });
+  await ensureCascadeConstraint({
+    table: 'ordens_servico',
+    constraint: 'ordens_servico_cliente_id_fkey',
+    definition: 'FOREIGN KEY (cliente_id) REFERENCES public.clientes(id) ON DELETE CASCADE',
+  });
+  await ensureCascadeConstraint({
+    table: 'ordens_servico_pecas',
+    constraint: 'ordens_servico_pecas_ordem_servico_id_fkey',
+    definition: 'FOREIGN KEY (ordem_servico_id) REFERENCES public.ordens_servico(id) ON DELETE CASCADE',
+  });
+  await ensureCascadeConstraint({
+    table: 'ordens_servico_servicos',
+    constraint: 'ordens_servico_servicos_ordem_servico_id_fkey',
+    definition: 'FOREIGN KEY (ordem_servico_id) REFERENCES public.ordens_servico(id) ON DELETE CASCADE',
+  });
 }
 
 function normalizarRegistro(registro) {
@@ -324,17 +371,36 @@ async function updateCliente(id, { nome, email, telefone, enderecoRua, enderecoN
 }
 
 async function deleteCliente(id) {
-  return withTransaction(async (client) => {
+  return withTransaction(async client => {
     const anterior = await getClienteById(id, client);
     if (!anterior) {
       // não existe -> nada pra excluir
       return false;
     }
 
-    // tenta apagar o cliente
-    await client.query('DELETE FROM clientes WHERE id = $1', [id]);
+    const dependenciasResultado = await client.query(
+      `SELECT
+         (SELECT COUNT(*) FROM veiculos WHERE cliente_id = $1) AS veiculos,
+         (SELECT COUNT(*) FROM ordens_servico WHERE cliente_id = $1) AS ordens_servico`,
+      [id],
+    );
+    const dependencias = dependenciasResultado.rows?.[0] ?? { veiculos: 0, ordens_servico: 0 };
 
-    // registra na auditoria
+    try {
+      await client.query('DELETE FROM clientes WHERE id = $1', [id]);
+    } catch (error) {
+      if (error && error.code === '23503') {
+        const conflito = new Error('Cliente possui dependências e não pode ser removido.');
+        conflito.code = 'FK_DEPENDENCIAS';
+        conflito.details = {
+          veiculos: Number(dependencias.veiculos ?? 0),
+          ordensServico: Number(dependencias.ordens_servico ?? 0),
+        };
+        throw conflito;
+      }
+      throw error;
+    }
+
     await registrarAuditoria(
       client,
       'clientes',
