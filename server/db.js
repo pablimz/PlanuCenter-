@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
@@ -263,6 +264,31 @@ async function updateCliente(id, { nome, email, telefone }) {
   });
 }
 
+async function deleteCliente(id) {
+  return withTransaction(async (client) => {
+    const anterior = await getClienteById(id, client);
+    if (!anterior) {
+      // não existe -> nada pra excluir
+      return false;
+    }
+
+    // tenta apagar o cliente
+    await client.query('DELETE FROM clientes WHERE id = $1', [id]);
+
+    // registra na auditoria
+    await registrarAuditoria(
+      client,
+      'clientes',
+      id,
+      'DELETE',
+      anterior,
+      null
+    );
+
+    return true;
+  });
+}
+
 function mapVeiculo(row) {
   if (!row) {
     return null;
@@ -420,6 +446,33 @@ async function updatePeca(id, { nome, codigo, estoque = 0, preco = 0 }) {
     const atualizado = mapPeca(rows[0]);
     await registrarAuditoria(client, 'pecas', id, 'UPDATE', anterior, atualizado);
     return atualizado;
+  });
+}
+
+async function deletePeca(id) {
+  return withTransaction(async (client) => {
+    const anterior = await getPecaById(id, client);
+    if (!anterior) {
+      return false;
+    }
+
+    await client.query(
+      'DELETE FROM ordens_servico_pecas WHERE peca_id = $1',
+      [id]
+    );
+
+    await client.query('DELETE FROM pecas WHERE id = $1', [id]);
+
+    await registrarAuditoria(
+      client,
+      'pecas',
+      id,
+      'DELETE',
+      anterior,
+      null
+    );
+
+    return true;
   });
 }
 
@@ -693,6 +746,7 @@ module.exports = {
   findClienteByNome,
   addCliente,
   updateCliente,
+  deleteCliente,
   getVeiculos,
   getVeiculoById,
   findVeiculoByPlaca,
@@ -704,6 +758,7 @@ module.exports = {
   findPecaByCodigo,
   addPeca,
   updatePeca,
+  deletePeca,
   getServicos,
   getServicoById,
   findServicoByDescricao,

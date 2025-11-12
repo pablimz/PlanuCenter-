@@ -7,6 +7,7 @@ const {
   findClienteByNome,
   addCliente,
   updateCliente,
+  deleteCliente,      
   getVeiculos,
   getVeiculoById,
   findVeiculoByPlaca,
@@ -18,6 +19,7 @@ const {
   findPecaByCodigo,
   addPeca,
   updatePeca,
+  deletePeca,         
   getServicos,
   getServicoById,
   findServicoByDescricao,
@@ -457,6 +459,21 @@ async function handleRequest(req, res) {
     return;
   }
 
+  if (req.method === 'DELETE' && /^\/api\/clientes\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    if (!id) {
+      throw new HttpError(400, 'ID de cliente inválido.');
+    }
+
+    const removido = await deleteCliente(id);
+    if (!removido) {
+      throw new HttpError(404, 'Cliente não encontrado.');
+    }
+
+    sendSuccess(res, 200, true);
+    return;
+  }
+  
   if (req.method === 'GET' && pathname === '/api/veiculos') {
     const veiculos = await getVeiculos();
     sendSuccess(res, 200, veiculos);
@@ -572,6 +589,23 @@ async function handleRequest(req, res) {
     return;
   }
 
+    // DELETE /api/pecas/:id
+  if (req.method === 'DELETE' && /^\/api\/pecas\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    if (!id) {
+      throw new HttpError(400, 'ID de peça inválido.');
+    }
+
+    const removida = await deletePeca(id);
+    if (!removida) {
+      throw new HttpError(404, 'Peça não encontrada.');
+    }
+
+    sendSuccess(res, 200, true);
+    return;
+  }
+
+
   if (req.method === 'GET' && pathname === '/api/servicos') {
     const servicos = await getServicos();
     sendSuccess(res, 200, servicos);
@@ -639,7 +673,7 @@ const server = http.createServer((req, res) => {
       sendError(res, error.status, error.message, error.details);
       return;
     }
-    console.error('Erro inesperado:', error);
+    console.error('Erro inesperado:', error); 
     sendError(
       res,
       500,

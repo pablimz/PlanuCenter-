@@ -453,16 +453,8 @@ export class DataService {
   }
 
   private ativarModoOffline() {
-    if (this.modoOffline()) {
-      return;
-    }
-    this.modoOffline.set(true);
+    
     console.warn('API indisponível. Entrando em modo offline com dados locais.');
-    this.reaplicarClientesOffline();
-    this.reaplicarVeiculosOffline();
-    this.reaplicarPecasOffline();
-    this.reaplicarServicosOffline();
-    this.reaplicarOrdensOffline();
   }
 
   private gerarProximoId(lista: { id: number }[]) {
