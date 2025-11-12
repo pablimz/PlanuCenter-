@@ -1,7 +1,15 @@
 
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  FormArray,
+  FormBuilder,
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { DataService } from '../core/services/data.service';
@@ -24,10 +32,20 @@ type StatusOrdem = OrdemServico['status'];
 
 type SelecaoCriavel<T = unknown> = AutocompleteValue<T>;
 
-type ItemFormularioGroup<T = unknown> = FormGroup<{
-  selecao: FormControl<SelecaoCriavel<T>>;
+type ServicoFormularioGroup = FormGroup<{
+  id: FormControl<number | null>;
+  descricao: FormControl<string>;
   qtde: FormControl<number>;
-  valorUnitario: FormControl<number>;
+  preco: FormControl<number>;
+  selecao: FormControl<SelecaoCriavel<Servico>>;
+}>;
+
+type PecaFormularioGroup = FormGroup<{
+  id: FormControl<number | null>;
+  nome: FormControl<string>;
+  qtde: FormControl<number>;
+  preco: FormControl<number>;
+  selecao: FormControl<SelecaoCriavel<Peca>>;
 }>;
 
 type FormularioOrdemGroup = FormGroup<{
@@ -36,8 +54,8 @@ type FormularioOrdemGroup = FormGroup<{
   dataEntrada: FormControl<string>;
   status: FormControl<SelecaoCriavel<{ valor: StatusOrdem }>>;
   observacoes: FormControl<string>;
-  servicos: FormArray<ItemFormularioGroup<Servico>>;
-  pecas: FormArray<ItemFormularioGroup<Peca>>;
+  servicos: FormArray<ServicoFormularioGroup>;
+  pecas: FormArray<PecaFormularioGroup>;
 }>;
 
 const removerNulos = <T>(valor: T | null | undefined): valor is T => valor != null;
@@ -294,7 +312,7 @@ const removerNulos = <T>(valor: T | null | undefined): valor is T => valor != nu
 
                 @if (servicosFormArray.length) {
                   <div class="space-y-3">
-                    @for (item of servicosFormArray.controls; track $index; let index = $index) {
+                    @for (item of servicosFormArray.controls; track trackByControl; let index = $index) {
                       <div class="grid gap-3 rounded-2xl bg-slate-900/40 p-4 sm:grid-cols-[minmax(0,1fr)_120px_140px_40px] sm:items-end" [formGroupName]="index">
                         <label class="flex flex-col text-sm text-slate-200 sm:col-span-1">
                           <span class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Serviço</span>
@@ -323,7 +341,7 @@ const removerNulos = <T>(valor: T | null | undefined): valor is T => valor != nu
                             min="0"
                             step="0.01"
                             class="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                            formControlName="valorUnitario"
+                            formControlName="preco"
                           />
                         </label>
 
@@ -356,7 +374,7 @@ const removerNulos = <T>(valor: T | null | undefined): valor is T => valor != nu
 
                 @if (pecasFormArray.length) {
                   <div class="space-y-3">
-                    @for (item of pecasFormArray.controls; track $index; let index = $index) {
+                    @for (item of pecasFormArray.controls; track trackByControl; let index = $index) {
                       <div class="grid gap-3 rounded-2xl bg-slate-900/40 p-4 sm:grid-cols-[minmax(0,1fr)_120px_140px_40px] sm:items-end" [formGroupName]="index">
                         <label class="flex flex-col text-sm text-slate-200 sm:col-span-1">
                           <span class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Peça</span>
@@ -385,7 +403,7 @@ const removerNulos = <T>(valor: T | null | undefined): valor is T => valor != nu
                             min="0"
                             step="0.01"
                             class="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                            formControlName="valorUnitario"
+                            formControlName="preco"
                           />
                         </label>
 
@@ -559,15 +577,17 @@ export class OrdensServicoComponent {
 
   formularioOrdem: FormularioOrdemGroup = this.criarFormularioInicial();
 
+  trackByControl = (_index: number, control: AbstractControl) => control;
+
   constructor() {
     this.configurarReacoesFormulario();
   }
 
-  get servicosFormArray(): FormArray<ItemFormularioGroup<Servico>> {
+  get servicosFormArray(): FormArray<ServicoFormularioGroup> {
     return this.formularioOrdem.controls.servicos;
   }
 
-  get pecasFormArray(): FormArray<ItemFormularioGroup<Peca>> {
+  get pecasFormArray(): FormArray<PecaFormularioGroup> {
     return this.formularioOrdem.controls.pecas;
   }
 
@@ -748,24 +768,30 @@ export class OrdensServicoComponent {
   }
 
   adicionarServico() {
-    this.servicosFormArray.push(this.criarItemFormulario<Servico>());
+    this.servicosFormArray.push(this.criarServicoFormulario());
     this.atualizarIndicadoresItens();
   }
 
   removerServico(index: number) {
+    if (index < 0 || index >= this.servicosFormArray.length) {
+      return;
+    }
     this.servicosFormArray.removeAt(index);
     if (!this.servicosFormArray.length) {
-      this.servicosFormArray.push(this.criarItemFormulario<Servico>());
+      this.servicosFormArray.push(this.criarServicoFormulario());
     }
     this.atualizarIndicadoresItens();
   }
 
   adicionarPeca() {
-    this.pecasFormArray.push(this.criarItemFormulario<Peca>());
+    this.pecasFormArray.push(this.criarPecaFormulario());
     this.atualizarIndicadoresItens();
   }
 
   removerPeca(index: number) {
+    if (index < 0 || index >= this.pecasFormArray.length) {
+      return;
+    }
     this.pecasFormArray.removeAt(index);
     this.atualizarIndicadoresItens();
   }
@@ -776,7 +802,7 @@ export class OrdensServicoComponent {
 
   calcularTotalServicosSelecionados() {
     return this.servicosFormArray.controls.reduce((total, grupo) => {
-      const valor = Math.max(0, Number(grupo.controls.valorUnitario.value) || 0);
+      const valor = Math.max(0, Number(grupo.controls.preco.value) || 0);
       const qtde = Math.max(1, Number(grupo.controls.qtde.value) || 1);
       return total + valor * qtde;
     }, 0);
@@ -784,7 +810,7 @@ export class OrdensServicoComponent {
 
   calcularTotalPecasSelecionadas() {
     return this.pecasFormArray.controls.reduce((total, grupo) => {
-      const valor = Math.max(0, Number(grupo.controls.valorUnitario.value) || 0);
+      const valor = Math.max(0, Number(grupo.controls.preco.value) || 0);
       const qtde = Math.max(1, Number(grupo.controls.qtde.value) || 1);
       return total + valor * qtde;
     }, 0);
@@ -890,35 +916,43 @@ export class OrdensServicoComponent {
       mensagensErro.push('Selecione um status válido.');
     }
 
-    const servicos = this.servicosFormArray.controls
-      .map((grupo): OrdemServicoServicoItem | null => {
-        const selecao = grupo.controls.selecao.value;
-        if (!selecao || !selecao.label?.trim()) {
+    const servicos = this.servicosFormArray
+      .getRawValue()
+      .map((item): OrdemServicoServicoItem | null => {
+        const selecao = item.selecao;
+        const descricao =
+          item.descricao?.trim() ||
+          (selecao?.data as Servico | undefined)?.descricao?.trim() ||
+          selecao?.label?.trim() ||
+          '';
+        if (!descricao) {
           return null;
         }
-        const id = this.obterIdNumero(selecao);
-        const itemBase: OrdemServicoServicoItem = {
-          descricao: selecao.data?.descricao ?? selecao.label.trim(),
-          preco: Math.max(0, Number(grupo.controls.valorUnitario.value) || 0),
-          qtde: Math.max(1, Number(grupo.controls.qtde.value) || 1),
-        };
-        return id != null ? { ...itemBase, id } : itemBase;
+        const qtde = Math.max(1, Number(item.qtde) || 1);
+        const preco = Math.max(0, Number(item.preco) || 0);
+        const base: OrdemServicoServicoItem = { descricao, qtde, preco };
+        const id = this.obterIdNumero(selecao) ?? (typeof item.id === 'number' ? item.id : undefined);
+        return id != null ? { ...base, id } : base;
       })
       .filter(removerNulos);
 
-    const pecas = this.pecasFormArray.controls
-      .map((grupo): OrdemServicoPecaItem | null => {
-        const selecao = grupo.controls.selecao.value;
-        if (!selecao || !selecao.label?.trim()) {
+    const pecas = this.pecasFormArray
+      .getRawValue()
+      .map((item): OrdemServicoPecaItem | null => {
+        const selecao = item.selecao;
+        const nome =
+          item.nome?.trim() ||
+          (selecao?.data as Peca | undefined)?.nome?.trim() ||
+          selecao?.label?.trim() ||
+          '';
+        if (!nome) {
           return null;
         }
-        const id = this.obterIdNumero(selecao);
-        const itemBase: OrdemServicoPecaItem = {
-          nome: selecao.data?.nome ?? selecao.label.trim(),
-          preco: Math.max(0, Number(grupo.controls.valorUnitario.value) || 0),
-          qtde: Math.max(1, Number(grupo.controls.qtde.value) || 1),
-        };
-        return id != null ? { ...itemBase, id } : itemBase;
+        const qtde = Math.max(1, Number(item.qtde) || 1);
+        const preco = Math.max(0, Number(item.preco) || 0);
+        const base: OrdemServicoPecaItem = { nome, qtde, preco };
+        const id = this.obterIdNumero(selecao) ?? (typeof item.id === 'number' ? item.id : undefined);
+        return id != null ? { ...base, id } : base;
       })
       .filter(removerNulos);
 
@@ -964,11 +998,13 @@ export class OrdensServicoComponent {
   private atualizarIndicadoresItens() {
     const possuiServicosValidos = this.servicosFormArray.controls.some(grupo => {
       const selecao = grupo.controls.selecao.value;
-      return !!selecao?.label?.trim() && (grupo.controls.qtde.value ?? 0) > 0;
+      const descricao = grupo.controls.descricao.value?.trim();
+      return (!!selecao?.label?.trim() || !!descricao) && (grupo.controls.qtde.value ?? 0) > 0;
     });
     const possuiPecasValidas = this.pecasFormArray.controls.some(grupo => {
       const selecao = grupo.controls.selecao.value;
-      return !!selecao?.label?.trim() && (grupo.controls.qtde.value ?? 0) > 0;
+      const nome = grupo.controls.nome.value?.trim();
+      return (!!selecao?.label?.trim() || !!nome) && (grupo.controls.qtde.value ?? 0) > 0;
     });
 
     if (possuiServicosValidos || possuiPecasValidas) {
@@ -990,8 +1026,8 @@ export class OrdensServicoComponent {
       dataEntrada: new FormControl<string>(hoje, { nonNullable: true, validators: [Validators.required] }),
       status: this.fb.control<SelecaoCriavel<{ valor: StatusOrdem }>>(null),
       observacoes: new FormControl<string>('', { nonNullable: true }),
-      servicos: this.fb.array([this.criarItemFormulario<Servico>()]),
-      pecas: this.fb.array<ItemFormularioGroup<Peca>>([]),
+      servicos: this.fb.array<ServicoFormularioGroup>([this.criarServicoFormulario()]),
+      pecas: this.fb.array<PecaFormularioGroup>([]),
     }) as FormularioOrdemGroup;
   }
 
@@ -1005,7 +1041,7 @@ export class OrdensServicoComponent {
       observacoes: '',
     });
     this.servicosFormArray.clear();
-    this.servicosFormArray.push(this.criarItemFormulario<Servico>());
+    this.servicosFormArray.push(this.criarServicoFormulario());
     this.pecasFormArray.clear();
     this.atualizarIndicadoresItens();
   }
@@ -1039,14 +1075,19 @@ export class OrdensServicoComponent {
         const servico = this.servicos().find(serv => serv.id === item.id);
         const selecao: SelecaoCriavel<Servico> = servico
           ? { id: servico.id, label: this.formatarServicoLabel(servico), data: servico }
-          : { id: item.id, label: `Serviço #${item.id}` };
-        const valorUnitario = servico?.preco ?? 0;
+          : { id: item.id, label: `Serviço #${item.id ?? ''}`.trim() };
         this.servicosFormArray.push(
-          this.criarItemFormulario<Servico>({ selecao, qtde: item.qtde, valorUnitario }),
+          this.criarServicoFormulario({
+            id: servico?.id ?? item.id ?? null,
+            selecao,
+            descricao: servico?.descricao ?? selecao.label ?? 'Serviço',
+            qtde: item.qtde,
+            preco: servico?.preco ?? 0,
+          }),
         );
       });
     } else {
-      this.servicosFormArray.push(this.criarItemFormulario<Servico>());
+      this.servicosFormArray.push(this.criarServicoFormulario());
     }
 
     this.pecasFormArray.clear();
@@ -1054,10 +1095,15 @@ export class OrdensServicoComponent {
       const peca = this.pecas().find(prod => prod.id === item.id);
       const selecao: SelecaoCriavel<Peca> = peca
         ? { id: peca.id, label: this.formatarPecaLabel(peca), data: peca }
-        : { id: item.id, label: `Peça #${item.id}` };
-      const valorUnitario = peca?.preco ?? 0;
+        : { id: item.id, label: `Peça #${item.id ?? ''}`.trim() };
       this.pecasFormArray.push(
-        this.criarItemFormulario<Peca>({ selecao, qtde: item.qtde, valorUnitario }),
+        this.criarPecaFormulario({
+          id: peca?.id ?? item.id ?? null,
+          selecao,
+          nome: peca?.nome ?? selecao.label ?? 'Peça',
+          qtde: item.qtde,
+          preco: peca?.preco ?? 0,
+        }),
       );
     });
 
@@ -1094,29 +1140,41 @@ export class OrdensServicoComponent {
       .subscribe(() => this.atualizarIndicadoresItens());
   }
 
-  private criarItemFormulario<T>(dados?: {
-    selecao?: SelecaoCriavel<T>;
+  private criarServicoFormulario(dados?: {
+    id?: number | null;
+    selecao?: SelecaoCriavel<Servico>;
+    descricao?: string;
     qtde?: number;
-    valorUnitario?: number;
-  }): ItemFormularioGroup<T> {
+    preco?: number;
+  }): ServicoFormularioGroup {
     const grupo = this.fb.group({
-      selecao: this.fb.control<SelecaoCriavel<T>>(dados?.selecao ?? null),
-      qtde: new FormControl<number>(dados?.qtde ?? 1, {
+      id: this.fb.control<number | null>(dados?.id ?? this.obterIdNumero(dados?.selecao) ?? null),
+      descricao: new FormControl<string>(dados?.descricao ?? '', { nonNullable: true }),
+      qtde: new FormControl<number>(Math.max(1, dados?.qtde ?? 1), {
         nonNullable: true,
         validators: [Validators.min(1)],
       }),
-      valorUnitario: new FormControl<number>(dados?.valorUnitario ?? 0, {
+      preco: new FormControl<number>(Math.max(0, dados?.preco ?? 0), {
         nonNullable: true,
         validators: [Validators.min(0)],
       }),
-    }) as ItemFormularioGroup<T>;
+      selecao: this.fb.control<SelecaoCriavel<Servico>>(dados?.selecao ?? null),
+    }) as ServicoFormularioGroup;
 
     grupo.controls.selecao.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(valor => {
-        const preco = (valor?.data as { preco?: number } | undefined)?.preco;
-        if (typeof preco === 'number' && grupo.controls.valorUnitario.value !== preco) {
-          grupo.controls.valorUnitario.setValue(Number(preco) || 0, { emitEvent: false });
+        const id = this.obterIdNumero(valor) ?? null;
+        if (grupo.controls.id.value !== id) {
+          grupo.controls.id.setValue(id, { emitEvent: false });
+        }
+        const descricao = (valor?.data as Servico | undefined)?.descricao ?? valor?.label?.trim() ?? '';
+        if (descricao && grupo.controls.descricao.value !== descricao) {
+          grupo.controls.descricao.setValue(descricao, { emitEvent: false });
+        }
+        const precoSelecionado = (valor?.data as Servico | undefined)?.preco;
+        if (typeof precoSelecionado === 'number' && grupo.controls.preco.value !== precoSelecionado) {
+          grupo.controls.preco.setValue(Math.max(0, Number(precoSelecionado) || 0), { emitEvent: false });
         }
         this.atualizarIndicadoresItens();
       });
@@ -1131,12 +1189,74 @@ export class OrdensServicoComponent {
         this.atualizarIndicadoresItens();
       });
 
-    grupo.controls.valorUnitario.valueChanges
+    grupo.controls.preco.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(valor => {
         const ajustado = Math.max(0, Number(valor) || 0);
         if (ajustado !== valor) {
-          grupo.controls.valorUnitario.setValue(ajustado, { emitEvent: false });
+          grupo.controls.preco.setValue(ajustado, { emitEvent: false });
+        }
+        this.atualizarIndicadoresItens();
+      });
+
+    return grupo;
+  }
+
+  private criarPecaFormulario(dados?: {
+    id?: number | null;
+    selecao?: SelecaoCriavel<Peca>;
+    nome?: string;
+    qtde?: number;
+    preco?: number;
+  }): PecaFormularioGroup {
+    const grupo = this.fb.group({
+      id: this.fb.control<number | null>(dados?.id ?? this.obterIdNumero(dados?.selecao) ?? null),
+      nome: new FormControl<string>(dados?.nome ?? '', { nonNullable: true }),
+      qtde: new FormControl<number>(Math.max(1, dados?.qtde ?? 1), {
+        nonNullable: true,
+        validators: [Validators.min(1)],
+      }),
+      preco: new FormControl<number>(Math.max(0, dados?.preco ?? 0), {
+        nonNullable: true,
+        validators: [Validators.min(0)],
+      }),
+      selecao: this.fb.control<SelecaoCriavel<Peca>>(dados?.selecao ?? null),
+    }) as PecaFormularioGroup;
+
+    grupo.controls.selecao.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(valor => {
+        const id = this.obterIdNumero(valor) ?? null;
+        if (grupo.controls.id.value !== id) {
+          grupo.controls.id.setValue(id, { emitEvent: false });
+        }
+        const nome = (valor?.data as Peca | undefined)?.nome ?? valor?.label?.trim() ?? '';
+        if (nome && grupo.controls.nome.value !== nome) {
+          grupo.controls.nome.setValue(nome, { emitEvent: false });
+        }
+        const precoSelecionado = (valor?.data as Peca | undefined)?.preco;
+        if (typeof precoSelecionado === 'number' && grupo.controls.preco.value !== precoSelecionado) {
+          grupo.controls.preco.setValue(Math.max(0, Number(precoSelecionado) || 0), { emitEvent: false });
+        }
+        this.atualizarIndicadoresItens();
+      });
+
+    grupo.controls.qtde.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(valor => {
+        const ajustado = Math.max(1, Math.trunc(Number(valor) || 1));
+        if (ajustado !== valor) {
+          grupo.controls.qtde.setValue(ajustado, { emitEvent: false });
+        }
+        this.atualizarIndicadoresItens();
+      });
+
+    grupo.controls.preco.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(valor => {
+        const ajustado = Math.max(0, Number(valor) || 0);
+        if (ajustado !== valor) {
+          grupo.controls.preco.setValue(ajustado, { emitEvent: false });
         }
         this.atualizarIndicadoresItens();
       });
