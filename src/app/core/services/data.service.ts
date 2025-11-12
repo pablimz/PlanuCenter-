@@ -13,10 +13,46 @@ type OfflineDatabase = {
 
 const OFFLINE_DATA: OfflineDatabase = {
   clientes: [
-    { id: 1, nome: 'Carlos Alberto', email: 'carlos.alberto@email.com', telefone: '(11) 91234-5678' },
-    { id: 2, nome: 'Joana Pereira', email: 'joana.pereira@email.com', telefone: '(11) 98765-4321' },
-    { id: 3, nome: 'Pedro Henrique', email: 'pedro.henrique@email.com', telefone: '(21) 99876-5432' },
-    { id: 4, nome: 'João da Silva', email: 'joao.silva@email.com', telefone: '(31) 93456-7890' }
+    {
+      id: 1,
+      nome: 'Carlos Alberto',
+      email: 'carlos.alberto@email.com',
+      telefone: '(11) 91234-5678',
+      enderecoRua: 'Rua das Flores',
+      enderecoNumero: '123',
+      enderecoCep: '01001-000',
+      enderecoCidade: 'São Paulo/SP'
+    },
+    {
+      id: 2,
+      nome: 'Joana Pereira',
+      email: 'joana.pereira@email.com',
+      telefone: '(11) 98765-4321',
+      enderecoRua: 'Avenida Brasil',
+      enderecoNumero: '456',
+      enderecoCep: '01310-000',
+      enderecoCidade: 'São Paulo/SP'
+    },
+    {
+      id: 3,
+      nome: 'Pedro Henrique',
+      email: 'pedro.henrique@email.com',
+      telefone: '(21) 99876-5432',
+      enderecoRua: 'Rua das Laranjeiras',
+      enderecoNumero: '789',
+      enderecoCep: '22240-003',
+      enderecoCidade: 'Rio de Janeiro/RJ'
+    },
+    {
+      id: 4,
+      nome: 'João da Silva',
+      email: 'joao.silva@email.com',
+      telefone: '(31) 93456-7890',
+      enderecoRua: 'Praça Sete',
+      enderecoNumero: '100',
+      enderecoCep: '30190-010',
+      enderecoCidade: 'Belo Horizonte/MG'
+    }
   ],
   veiculos: [
     { id: 1, placa: 'ROZ-1295', marca: 'Toyota', modelo: 'Corolla', ano: '2022', clienteId: 1, clienteNome: 'Carlos Alberto' },

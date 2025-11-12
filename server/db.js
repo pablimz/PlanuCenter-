@@ -90,6 +90,10 @@ async function initializeDatabase() {
       nome TEXT NOT NULL,
       email TEXT,
       telefone TEXT,
+      endereco_rua TEXT,
+      endereco_numero TEXT,
+      endereco_cep TEXT,
+      endereco_cidade TEXT,
       criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
@@ -176,6 +180,10 @@ async function initializeDatabase() {
 
   await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
   await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS endereco_rua TEXT;`);
+  await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS endereco_numero TEXT;`);
+  await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS endereco_cep TEXT;`);
+  await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS endereco_cidade TEXT;`);
   await query(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
   await query(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
   await query(`ALTER TABLE pecas ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
@@ -220,19 +228,27 @@ function mapCliente(row) {
     nome: row.nome,
     email: row.email ?? undefined,
     telefone: row.telefone ?? undefined,
+    enderecoRua: row.endereco_rua ?? undefined,
+    enderecoNumero: row.endereco_numero ?? undefined,
+    enderecoCep: row.endereco_cep ?? undefined,
+    enderecoCidade: row.endereco_cidade ?? undefined,
   };
 }
 
 async function getClientes() {
   const { rows } = await query(
-    'SELECT id, nome, email, telefone FROM clientes ORDER BY id DESC'
+    `SELECT id, nome, email, telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade
+     FROM clientes
+     ORDER BY id DESC`
   );
   return rows.map(mapCliente);
 }
 
 async function getClienteById(id, client) {
   const { rows } = await query(
-    'SELECT id, nome, email, telefone FROM clientes WHERE id = $1',
+    `SELECT id, nome, email, telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade
+     FROM clientes
+     WHERE id = $1`,
     [id],
     client,
   );
@@ -241,19 +257,30 @@ async function getClienteById(id, client) {
 
 async function findClienteByNome(nome) {
   const { rows } = await query(
-    'SELECT id, nome, email, telefone FROM clientes WHERE LOWER(nome) = LOWER($1) LIMIT 1',
+    `SELECT id, nome, email, telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade
+     FROM clientes
+     WHERE LOWER(nome) = LOWER($1)
+     LIMIT 1`,
     [nome],
   );
   return mapCliente(rows[0]);
 }
 
-async function addCliente({ nome, email, telefone }) {
+async function addCliente({ nome, email, telefone, enderecoRua, enderecoNumero, enderecoCep, enderecoCidade }) {
   return withTransaction(async client => {
     const { rows } = await client.query(
-      `INSERT INTO clientes (nome, email, telefone)
-       VALUES ($1, $2, $3)
-       RETURNING id, nome, email, telefone`,
-      [nome, email ?? null, telefone ?? null],
+      `INSERT INTO clientes (nome, email, telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, nome, email, telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade`,
+      [
+        nome,
+        email ?? null,
+        telefone ?? null,
+        enderecoRua ?? null,
+        enderecoNumero ?? null,
+        enderecoCep ?? null,
+        enderecoCidade ?? null,
+      ],
     );
     const cliente = mapCliente(rows[0]);
     await registrarAuditoria(client, 'clientes', cliente.id, 'INSERT', null, cliente);
@@ -261,7 +288,7 @@ async function addCliente({ nome, email, telefone }) {
   });
 }
 
-async function updateCliente(id, { nome, email, telefone }) {
+async function updateCliente(id, { nome, email, telefone, enderecoRua, enderecoNumero, enderecoCep, enderecoCidade }) {
   return withTransaction(async client => {
     const anterior = await getClienteById(id, client);
     if (!anterior) {
@@ -269,10 +296,26 @@ async function updateCliente(id, { nome, email, telefone }) {
     }
     const { rows } = await client.query(
       `UPDATE clientes
-       SET nome = $1, email = $2, telefone = $3, atualizado_em = NOW()
-       WHERE id = $4
-       RETURNING id, nome, email, telefone`,
-      [nome, email ?? null, telefone ?? null, id],
+       SET nome = $1,
+           email = $2,
+           telefone = $3,
+           endereco_rua = $4,
+           endereco_numero = $5,
+           endereco_cep = $6,
+           endereco_cidade = $7,
+           atualizado_em = NOW()
+       WHERE id = $8
+       RETURNING id, nome, email, telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade`,
+      [
+        nome,
+        email ?? null,
+        telefone ?? null,
+        enderecoRua ?? null,
+        enderecoNumero ?? null,
+        enderecoCep ?? null,
+        enderecoCidade ?? null,
+        id,
+      ],
     );
     const atualizado = mapCliente(rows[0]);
     await registrarAuditoria(client, 'clientes', id, 'UPDATE', anterior, atualizado);

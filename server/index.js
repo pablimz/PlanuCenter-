@@ -124,15 +124,34 @@ async function gerarPlacaGenerica(baseTexto) {
 async function garantirClienteEntidade(info = {}) {
   const id = Number(info.id);
   const nome = normalizarTexto(info.nome);
+  const email = normalizarTexto(info.email);
+  const telefone = normalizarTexto(info.telefone);
+  const enderecoRua = normalizarTexto(info.enderecoRua || info.endereco_rua);
+  const enderecoNumero = normalizarTexto(info.enderecoNumero || info.endereco_numero);
+  const enderecoCep = normalizarTexto(info.enderecoCep || info.endereco_cep);
+  const enderecoCidade = normalizarTexto(info.enderecoCidade || info.endereco_cidade);
   if (id) {
     const existente = await getClienteById(id);
     if (existente) {
-      if (nome && existente.nome !== nome) {
-        await updateCliente(id, {
-          nome,
-          email: existente.email ?? undefined,
-          telefone: existente.telefone ?? undefined,
-        });
+      const dadosAtualizados = {
+        nome: nome || existente.nome,
+        email: email || existente.email || undefined,
+        telefone: telefone || existente.telefone || undefined,
+        enderecoRua: enderecoRua || existente.enderecoRua || undefined,
+        enderecoNumero: enderecoNumero || existente.enderecoNumero || undefined,
+        enderecoCep: enderecoCep || existente.enderecoCep || undefined,
+        enderecoCidade: enderecoCidade || existente.enderecoCidade || undefined,
+      };
+      const precisaAtualizar =
+        dadosAtualizados.nome !== existente.nome ||
+        dadosAtualizados.email !== (existente.email ?? undefined) ||
+        dadosAtualizados.telefone !== (existente.telefone ?? undefined) ||
+        dadosAtualizados.enderecoRua !== (existente.enderecoRua ?? undefined) ||
+        dadosAtualizados.enderecoNumero !== (existente.enderecoNumero ?? undefined) ||
+        dadosAtualizados.enderecoCep !== (existente.enderecoCep ?? undefined) ||
+        dadosAtualizados.enderecoCidade !== (existente.enderecoCidade ?? undefined);
+      if (precisaAtualizar) {
+        await updateCliente(id, dadosAtualizados);
       }
       return id;
     }
@@ -142,9 +161,37 @@ async function garantirClienteEntidade(info = {}) {
   }
   const existentePorNome = await findClienteByNome(nome);
   if (existentePorNome) {
+    const dadosAtualizados = {
+      nome: nome || existentePorNome.nome,
+      email: email || existentePorNome.email || undefined,
+      telefone: telefone || existentePorNome.telefone || undefined,
+      enderecoRua: enderecoRua || existentePorNome.enderecoRua || undefined,
+      enderecoNumero: enderecoNumero || existentePorNome.enderecoNumero || undefined,
+      enderecoCep: enderecoCep || existentePorNome.enderecoCep || undefined,
+      enderecoCidade: enderecoCidade || existentePorNome.enderecoCidade || undefined,
+    };
+    const precisaAtualizar =
+      dadosAtualizados.nome !== existentePorNome.nome ||
+      dadosAtualizados.email !== (existentePorNome.email ?? undefined) ||
+      dadosAtualizados.telefone !== (existentePorNome.telefone ?? undefined) ||
+      dadosAtualizados.enderecoRua !== (existentePorNome.enderecoRua ?? undefined) ||
+      dadosAtualizados.enderecoNumero !== (existentePorNome.enderecoNumero ?? undefined) ||
+      dadosAtualizados.enderecoCep !== (existentePorNome.enderecoCep ?? undefined) ||
+      dadosAtualizados.enderecoCidade !== (existentePorNome.enderecoCidade ?? undefined);
+    if (precisaAtualizar) {
+      await updateCliente(existentePorNome.id, dadosAtualizados);
+    }
     return existentePorNome.id;
   }
-  const novo = await addCliente({ nome });
+  const novo = await addCliente({
+    nome,
+    email: email || undefined,
+    telefone: telefone || undefined,
+    enderecoRua: enderecoRua || undefined,
+    enderecoNumero: enderecoNumero || undefined,
+    enderecoCep: enderecoCep || undefined,
+    enderecoCidade: enderecoCidade || undefined,
+  });
   return novo.id;
 }
 
@@ -418,6 +465,10 @@ async function handleRequest(req, res) {
       ...cliente,
       email: cliente.email ?? undefined,
       telefone: cliente.telefone ?? undefined,
+      enderecoRua: cliente.enderecoRua ?? undefined,
+      enderecoNumero: cliente.enderecoNumero ?? undefined,
+      enderecoCep: cliente.enderecoCep ?? undefined,
+      enderecoCidade: cliente.enderecoCidade ?? undefined,
     }));
     sendSuccess(res, 200, resposta);
     return;
@@ -433,6 +484,10 @@ async function handleRequest(req, res) {
       ...cliente,
       email: cliente.email ?? undefined,
       telefone: cliente.telefone ?? undefined,
+      enderecoRua: cliente.enderecoRua ?? undefined,
+      enderecoNumero: cliente.enderecoNumero ?? undefined,
+      enderecoCep: cliente.enderecoCep ?? undefined,
+      enderecoCidade: cliente.enderecoCidade ?? undefined,
     });
     return;
   }
@@ -442,6 +497,10 @@ async function handleRequest(req, res) {
     const nome = normalizarTexto(body.nome);
     const email = normalizarTexto(body.email);
     const telefone = normalizarTexto(body.telefone);
+    const enderecoRua = normalizarTexto(body.enderecoRua || body.endereco_rua);
+    const enderecoNumero = normalizarTexto(body.enderecoNumero || body.endereco_numero);
+    const enderecoCep = normalizarTexto(body.enderecoCep || body.endereco_cep);
+    const enderecoCidade = normalizarTexto(body.enderecoCidade || body.endereco_cidade);
     if (!nome) {
       throw new HttpError(400, 'Nome é obrigatório.');
     }
@@ -449,6 +508,10 @@ async function handleRequest(req, res) {
       nome,
       email: email || undefined,
       telefone: telefone || undefined,
+      enderecoRua: enderecoRua || undefined,
+      enderecoNumero: enderecoNumero || undefined,
+      enderecoCep: enderecoCep || undefined,
+      enderecoCidade: enderecoCidade || undefined,
     });
     sendSuccess(res, 201, novo);
     return;
@@ -460,6 +523,10 @@ async function handleRequest(req, res) {
     const nome = normalizarTexto(body.nome);
     const email = normalizarTexto(body.email);
     const telefone = normalizarTexto(body.telefone);
+    const enderecoRua = normalizarTexto(body.enderecoRua || body.endereco_rua);
+    const enderecoNumero = normalizarTexto(body.enderecoNumero || body.endereco_numero);
+    const enderecoCep = normalizarTexto(body.enderecoCep || body.endereco_cep);
+    const enderecoCidade = normalizarTexto(body.enderecoCidade || body.endereco_cidade);
     if (!nome) {
       throw new HttpError(400, 'Nome é obrigatório.');
     }
@@ -467,6 +534,10 @@ async function handleRequest(req, res) {
       nome,
       email: email || undefined,
       telefone: telefone || undefined,
+      enderecoRua: enderecoRua || undefined,
+      enderecoNumero: enderecoNumero || undefined,
+      enderecoCep: enderecoCep || undefined,
+      enderecoCidade: enderecoCidade || undefined,
     });
     if (!atualizado) {
       throw new HttpError(404, 'Cliente não encontrado.');

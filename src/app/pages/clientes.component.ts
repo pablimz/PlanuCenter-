@@ -129,6 +129,42 @@ import { Cliente } from '../core/models/models';
               />
             </label>
 
+            <label class="md:col-span-2 flex flex-col text-sm text-slate-200">
+              Rua / Logradouro
+              <input
+                class="mt-2 rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-400 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+                name="enderecoRua"
+                [(ngModel)]="formulario.enderecoRua"
+              />
+            </label>
+
+            <label class="flex flex-col text-sm text-slate-200">
+              Número
+              <input
+                class="mt-2 rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-400 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+                name="enderecoNumero"
+                [(ngModel)]="formulario.enderecoNumero"
+              />
+            </label>
+
+            <label class="flex flex-col text-sm text-slate-200">
+              CEP
+              <input
+                class="mt-2 rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-400 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+                name="enderecoCep"
+                [(ngModel)]="formulario.enderecoCep"
+              />
+            </label>
+
+            <label class="md:col-span-2 flex flex-col text-sm text-slate-200">
+              Cidade
+              <input
+                class="mt-2 rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-400 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+                name="enderecoCidade"
+                [(ngModel)]="formulario.enderecoCidade"
+              />
+            </label>
+
             <div class="md:col-span-2 flex flex-wrap justify-end gap-3">
               <button
                 type="button"
@@ -182,6 +218,22 @@ import { Cliente } from '../core/models/models';
                 <span class="text-base text-white">{{ clienteSelecionado()!.telefone }}</span>
               </div>
               <div>
+                <span class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Rua / Logradouro</span>
+                <span class="text-base text-white">{{ clienteSelecionado()!.enderecoRua || '—' }}</span>
+              </div>
+              <div>
+                <span class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Número</span>
+                <span class="text-base text-white">{{ clienteSelecionado()!.enderecoNumero || '—' }}</span>
+              </div>
+              <div>
+                <span class="block text-xs font-semibold uppercase tracking-wide text-slate-400">CEP</span>
+                <span class="text-base text-white">{{ clienteSelecionado()!.enderecoCep || '—' }}</span>
+              </div>
+              <div>
+                <span class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Cidade</span>
+                <span class="text-base text-white">{{ clienteSelecionado()!.enderecoCidade || '—' }}</span>
+              </div>
+              <div>
                 <span class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Veículos cadastrados</span>
                 <span class="text-base">{{ veiculosDoCliente().length }}</span>
               </div>
@@ -228,7 +280,19 @@ export class ClientesComponent {
       const nome = cliente.nome.toLowerCase();
       const email = cliente.email?.toLowerCase() ?? '';
       const telefone = cliente.telefone?.toLowerCase() ?? '';
-      return nome.includes(termo) || email.includes(termo) || telefone.includes(termo);
+      const enderecoRua = cliente.enderecoRua?.toLowerCase() ?? '';
+      const enderecoCidade = cliente.enderecoCidade?.toLowerCase() ?? '';
+      const enderecoCep = cliente.enderecoCep?.toLowerCase() ?? '';
+      const enderecoNumero = cliente.enderecoNumero?.toLowerCase() ?? '';
+      return (
+        nome.includes(termo) ||
+        email.includes(termo) ||
+        telefone.includes(termo) ||
+        enderecoRua.includes(termo) ||
+        enderecoCidade.includes(termo) ||
+        enderecoCep.includes(termo) ||
+        enderecoNumero.includes(termo)
+      );
     });
   });
 
@@ -236,6 +300,10 @@ export class ClientesComponent {
     nome: '',
     email: '',
     telefone: '',
+    enderecoRua: '',
+    enderecoNumero: '',
+    enderecoCep: '',
+    enderecoCidade: '',
   };
 
   clienteSelecionado = computed(() => {
@@ -263,6 +331,10 @@ export class ClientesComponent {
       nome: '',
       email: '',
       telefone: '',
+      enderecoRua: '',
+      enderecoNumero: '',
+      enderecoCep: '',
+      enderecoCidade: '',
     };
     this.modoVisualizacao.set('formulario');
   }
@@ -273,6 +345,10 @@ export class ClientesComponent {
       nome: cliente.nome,
       email: cliente.email || '',
       telefone: cliente.telefone || '',
+      enderecoRua: cliente.enderecoRua || '',
+      enderecoNumero: cliente.enderecoNumero || '',
+      enderecoCep: cliente.enderecoCep || '',
+      enderecoCidade: cliente.enderecoCidade || '',
     };
     this.modoVisualizacao.set('formulario');
   }
@@ -291,6 +367,10 @@ export class ClientesComponent {
       nome: this.formulario.nome.trim(),
       email: this.formulario.email.trim() || undefined,
       telefone: this.formulario.telefone.trim() || undefined,
+      enderecoRua: this.formulario.enderecoRua.trim() || undefined,
+      enderecoNumero: this.formulario.enderecoNumero.trim() || undefined,
+      enderecoCep: this.formulario.enderecoCep.trim() || undefined,
+      enderecoCidade: this.formulario.enderecoCidade.trim() || undefined,
     };
 
     try {

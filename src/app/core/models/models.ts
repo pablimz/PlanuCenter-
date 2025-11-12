@@ -32,6 +32,10 @@ export interface Cliente {
   nome: string;
   email?: string;
   telefone?: string;
+  enderecoRua?: string;
+  enderecoNumero?: string;
+  enderecoCep?: string;
+  enderecoCidade?: string;
 }
 
 export interface Veiculo {

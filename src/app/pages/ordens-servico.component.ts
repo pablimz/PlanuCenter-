@@ -93,7 +93,16 @@ interface FormularioOrdem {
                   @if (ordensFiltradas().length) {
                     @for (item of ordensFiltradas(); track item.ordem.id) {
                       <tr class="transition hover:bg-white/5">
-                        <td class="whitespace-nowrap px-6 py-4 font-semibold text-sky-300">#{{ item.ordem.id }}</td>
+                        <td class="whitespace-nowrap px-6 py-4 font-semibold text-sky-300">
+                          <a
+                            [routerLink]="['/ordens-servico', item.ordem.id]"
+                            target="_blank"
+                            rel="noopener"
+                            class="transition hover:text-sky-200"
+                          >
+                            #{{ item.ordem.id }}
+                          </a>
+                        </td>
                         <td class="px-6 py-4">{{ item.cliente?.nome || 'Cliente removido' }}</td>
                         <td class="px-6 py-4">
                           @if (item.veiculo) {
@@ -125,6 +134,7 @@ interface FormularioOrdem {
                             <a
                               class="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-4 py-1.5 text-xs font-semibold text-white shadow shadow-slate-950/40 transition hover:from-sky-400 hover:to-indigo-400"
                               [routerLink]="['/ordens-servico', item.ordem.id]"
+                              [queryParams]="{ autoPrint: true }"
                               target="_blank"
                               rel="noopener"
                             >
