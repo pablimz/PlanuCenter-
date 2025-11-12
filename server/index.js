@@ -13,18 +13,20 @@ const {
   findVeiculoByPlaca,
   addVeiculo,
   updateVeiculo,
+  deleteVeiculo,
   getPecas,
   getPecaById,
   findPecaByNome,
   findPecaByCodigo,
   addPeca,
   updatePeca,
-  deletePeca,         
+  deletePeca,
   getServicos,
   getServicoById,
   findServicoByDescricao,
   addServico,
   updateServico,
+  deleteServico,
   getOrdensServico,
   getOrdemServicoById,
   addOrdemServico,
@@ -421,6 +423,20 @@ async function handleRequest(req, res) {
     return;
   }
 
+  if (req.method === 'GET' && /^\/api\/clientes\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    const cliente = await getClienteById(id);
+    if (!cliente) {
+      throw new HttpError(404, 'Cliente não encontrado.');
+    }
+    sendSuccess(res, 200, {
+      ...cliente,
+      email: cliente.email ?? undefined,
+      telefone: cliente.telefone ?? undefined,
+    });
+    return;
+  }
+
   if (req.method === 'POST' && pathname === '/api/clientes') {
     const body = await readJsonBody(req);
     const nome = normalizarTexto(body.nome);
@@ -480,6 +496,16 @@ async function handleRequest(req, res) {
     return;
   }
 
+  if (req.method === 'GET' && /^\/api\/veiculos\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    const veiculo = await getVeiculoById(id);
+    if (!veiculo) {
+      throw new HttpError(404, 'Veículo não encontrado.');
+    }
+    sendSuccess(res, 200, veiculo);
+    return;
+  }
+
   if (req.method === 'POST' && pathname === '/api/veiculos') {
     const body = await readJsonBody(req);
     const placa = normalizarTexto(body.placa);
@@ -533,9 +559,34 @@ async function handleRequest(req, res) {
     return;
   }
 
+  if (req.method === 'DELETE' && /^\/api\/veiculos\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    if (!id) {
+      throw new HttpError(400, 'ID de veículo inválido.');
+    }
+
+    const removido = await deleteVeiculo(id);
+    if (!removido) {
+      throw new HttpError(404, 'Veículo não encontrado.');
+    }
+
+    sendSuccess(res, 200, true);
+    return;
+  }
+
   if (req.method === 'GET' && pathname === '/api/pecas') {
     const pecas = await getPecas();
     sendSuccess(res, 200, pecas);
+    return;
+  }
+
+  if (req.method === 'GET' && /^\/api\/pecas\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    const peca = await getPecaById(id);
+    if (!peca) {
+      throw new HttpError(404, 'Peça não encontrada.');
+    }
+    sendSuccess(res, 200, peca);
     return;
   }
 
@@ -589,7 +640,6 @@ async function handleRequest(req, res) {
     return;
   }
 
-    // DELETE /api/pecas/:id
   if (req.method === 'DELETE' && /^\/api\/pecas\/\d+$/.test(pathname)) {
     const id = Number(pathname.split('/').pop());
     if (!id) {
@@ -609,6 +659,67 @@ async function handleRequest(req, res) {
   if (req.method === 'GET' && pathname === '/api/servicos') {
     const servicos = await getServicos();
     sendSuccess(res, 200, servicos);
+    return;
+  }
+
+  if (req.method === 'GET' && /^\/api\/servicos\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    const servico = await getServicoById(id);
+    if (!servico) {
+      throw new HttpError(404, 'Serviço não encontrado.');
+    }
+    sendSuccess(res, 200, servico);
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/servicos') {
+    const body = await readJsonBody(req);
+    const descricao = normalizarTexto(body.descricao);
+    const preco = normalizarNumero(body.preco, 0);
+    if (!descricao) {
+      throw new HttpError(400, 'Descrição é obrigatória.');
+    }
+    const existente = await findServicoByDescricao(descricao);
+    if (existente) {
+      throw new HttpError(409, 'Já existe um serviço com esta descrição.');
+    }
+    const novo = await addServico({ descricao, preco });
+    sendSuccess(res, 201, novo);
+    return;
+  }
+
+  if (req.method === 'PUT' && /^\/api\/servicos\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    const body = await readJsonBody(req);
+    const descricao = normalizarTexto(body.descricao);
+    const preco = normalizarNumero(body.preco, 0);
+    if (!descricao) {
+      throw new HttpError(400, 'Descrição é obrigatória.');
+    }
+    const existente = await findServicoByDescricao(descricao);
+    if (existente && existente.id !== id) {
+      throw new HttpError(409, 'Já existe um serviço com esta descrição.');
+    }
+    const atualizado = await updateServico(id, { descricao, preco });
+    if (!atualizado) {
+      throw new HttpError(404, 'Serviço não encontrado.');
+    }
+    sendSuccess(res, 200, atualizado);
+    return;
+  }
+
+  if (req.method === 'DELETE' && /^\/api\/servicos\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    if (!id) {
+      throw new HttpError(400, 'ID de serviço inválido.');
+    }
+
+    const removido = await deleteServico(id);
+    if (!removido) {
+      throw new HttpError(404, 'Serviço não encontrado.');
+    }
+
+    sendSuccess(res, 200, true);
     return;
   }
 

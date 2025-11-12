@@ -22,7 +22,7 @@ This project now possui um backend Node.js que persiste os dados em um banco Pos
 
    Acesse `http://localhost:4200/` no navegador. As alterações nos arquivos front-end recarregam automaticamente a página.
 
-> **Evite erros no console**: Se o frontend for aberto sem a API rodando, as chamadas HTTP resultarão em mensagens de erro. O serviço de dados continua entrando automaticamente em um **modo offline** e exibe informações locais somente leitura, mas para trabalhar com dados reais (e impedir as mensagens de erro) mantenha `npm run server` ativo em paralelo ao `ng serve`.
+> **Evite erros no console**: Se o frontend for aberto sem a API rodando, as chamadas HTTP resultarão em mensagens de erro. O serviço de dados só ativa o **modo offline** quando ocorre falha de conexão (status `0`/`ERR_CONNECTION_REFUSED`) e exibe informações locais somente leitura. Para trabalhar com dados reais mantenha `npm run server` ativo em paralelo ao `ng serve`. Caso deseje desabilitar o modo offline durante o desenvolvimento, execute no console do navegador `localStorage.setItem('planucenter.offline.habilitado', 'false');` e recarregue a página.
 
 ## Configurando o PostgreSQL
 
@@ -50,7 +50,21 @@ npm install
 npm run db:migrate
 ```
 
+O comando `npm run db:migrate` cria (ou ajusta) o esquema completo das tabelas (`clientes`, `veiculos`, `pecas`, `servicos`, `ordens_servico`, relacionamentos e `auditoria_operacoes`) e, quando não há registros, importa os dados de `server/database.json`. O script é idempotente, portanto pode ser executado novamente sempre que for necessário alinhar o schema ao código.
+
 O arquivo `server/database.json` permanece disponível apenas como fallback offline para o frontend e como fonte de dados para a migração inicial. Em produção os dados oficiais passam a residir exclusivamente no PostgreSQL.
+
+## Endpoints principais da API
+
+A API HTTP exposta pelo `npm run server` responde na porta `3000` com o prefixo `/api` e retorna objetos no formato `{ success: boolean, data?, message? }`. Os recursos consumidos pelo frontend incluem:
+
+- **Clientes**: `GET /api/clientes`, `GET /api/clientes/:id`, `POST /api/clientes`, `PUT /api/clientes/:id`, `DELETE /api/clientes/:id`
+- **Veículos**: `GET /api/veiculos`, `GET /api/veiculos/:id`, `POST /api/veiculos`, `PUT /api/veiculos/:id`, `DELETE /api/veiculos/:id`
+- **Peças**: `GET /api/pecas`, `GET /api/pecas/:id`, `POST /api/pecas`, `PUT /api/pecas/:id`, `DELETE /api/pecas/:id`
+- **Serviços**: `GET /api/servicos`, `GET /api/servicos/:id`, `POST /api/servicos`, `PUT /api/servicos/:id`, `DELETE /api/servicos/:id`
+- **Ordens de serviço**: `GET /api/ordens-servico`, `GET /api/ordens-servico/:id`, `POST /api/ordens-servico`, `PUT /api/ordens-servico/:id`, `DELETE /api/ordens-servico/:id`
+
+Todas as operações de escrita registram auditoria em `auditoria_operacoes`, incluindo as exclusões em cascata provocadas pela remoção de veículos ou ordens.
 
 ## Auditoria das operações
 

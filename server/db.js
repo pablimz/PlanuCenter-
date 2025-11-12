@@ -90,7 +90,8 @@ async function initializeDatabase() {
       nome TEXT NOT NULL,
       email TEXT,
       telefone TEXT,
-      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
@@ -102,7 +103,8 @@ async function initializeDatabase() {
       modelo TEXT NOT NULL,
       ano TEXT NOT NULL,
       cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
-      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
@@ -113,7 +115,8 @@ async function initializeDatabase() {
       codigo TEXT NOT NULL UNIQUE,
       estoque INTEGER NOT NULL DEFAULT 0,
       preco NUMERIC(12,2) NOT NULL DEFAULT 0,
-      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
@@ -122,7 +125,8 @@ async function initializeDatabase() {
       id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
       descricao TEXT NOT NULL UNIQUE,
       preco NUMERIC(12,2) NOT NULL DEFAULT 0,
-      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
@@ -134,7 +138,8 @@ async function initializeDatabase() {
       data_entrada DATE NOT NULL,
       status TEXT NOT NULL,
       observacoes TEXT,
-      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
@@ -168,6 +173,17 @@ async function initializeDatabase() {
       executado_por TEXT
     );
   `);
+
+  await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE pecas ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE pecas ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE servicos ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE servicos ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE ordens_servico ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE ordens_servico ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
 }
 
 function normalizarRegistro(registro) {
@@ -253,7 +269,7 @@ async function updateCliente(id, { nome, email, telefone }) {
     }
     const { rows } = await client.query(
       `UPDATE clientes
-       SET nome = $1, email = $2, telefone = $3
+       SET nome = $1, email = $2, telefone = $3, atualizado_em = NOW()
        WHERE id = $4
        RETURNING id, nome, email, telefone`,
       [nome, email ?? null, telefone ?? null, id],
@@ -361,13 +377,34 @@ async function updateVeiculo(id, { placa, marca, modelo, ano, clienteId }) {
     }
     await client.query(
       `UPDATE veiculos
-       SET placa = $1, marca = $2, modelo = $3, ano = $4, cliente_id = $5
+       SET placa = $1, marca = $2, modelo = $3, ano = $4, cliente_id = $5, atualizado_em = NOW()
        WHERE id = $6`,
       [placa, marca, modelo, ano, clienteId, id],
     );
     const atualizado = await getVeiculoById(id, client);
     await registrarAuditoria(client, 'veiculos', id, 'UPDATE', anterior, atualizado);
     return atualizado;
+  });
+}
+
+async function deleteVeiculo(id) {
+  return withTransaction(async client => {
+    const anterior = await getVeiculoById(id, client);
+    if (!anterior) {
+      return false;
+    }
+
+    const { rows: ordensRelacionadas } = await client.query(
+      'SELECT id FROM ordens_servico WHERE veiculo_id = $1',
+      [id],
+    );
+    for (const ordem of ordensRelacionadas) {
+      await removerOrdemServico(client, ordem.id);
+    }
+
+    await client.query('DELETE FROM veiculos WHERE id = $1', [id]);
+    await registrarAuditoria(client, 'veiculos', id, 'DELETE', anterior, null);
+    return true;
   });
 }
 
@@ -438,7 +475,7 @@ async function updatePeca(id, { nome, codigo, estoque = 0, preco = 0 }) {
     }
     const { rows } = await client.query(
       `UPDATE pecas
-       SET nome = $1, codigo = $2, estoque = $3, preco = $4
+       SET nome = $1, codigo = $2, estoque = $3, preco = $4, atualizado_em = NOW()
        WHERE id = $5
        RETURNING id, nome, codigo, estoque, preco`,
       [nome, codigo, estoque, preco, id],
@@ -533,7 +570,7 @@ async function updateServico(id, { descricao, preco = 0 }) {
     }
     const { rows } = await client.query(
       `UPDATE servicos
-       SET descricao = $1, preco = $2
+       SET descricao = $1, preco = $2, atualizado_em = NOW()
        WHERE id = $3
        RETURNING id, descricao, preco`,
       [descricao, preco, id],
@@ -541,6 +578,20 @@ async function updateServico(id, { descricao, preco = 0 }) {
     const atualizado = mapServico(rows[0]);
     await registrarAuditoria(client, 'servicos', id, 'UPDATE', anterior, atualizado);
     return atualizado;
+  });
+}
+
+async function deleteServico(id) {
+  return withTransaction(async client => {
+    const anterior = await getServicoById(id, client);
+    if (!anterior) {
+      return false;
+    }
+
+    await client.query('DELETE FROM ordens_servico_servicos WHERE servico_id = $1', [id]);
+    await client.query('DELETE FROM servicos WHERE id = $1', [id]);
+    await registrarAuditoria(client, 'servicos', id, 'DELETE', anterior, null);
+    return true;
   });
 }
 
@@ -703,7 +754,7 @@ async function updateOrdemServico(id, { clienteId, veiculoId, dataEntrada, statu
     }
     await client.query(
       `UPDATE ordens_servico
-       SET cliente_id = $1, veiculo_id = $2, data_entrada = $3, status = $4, observacoes = $5
+       SET cliente_id = $1, veiculo_id = $2, data_entrada = $3, status = $4, observacoes = $5, atualizado_em = NOW()
        WHERE id = $6`,
       [clienteId, veiculoId, dataEntrada, status, observacoes ?? null, id],
     );
@@ -721,18 +772,20 @@ async function updateOrdemServico(id, { clienteId, veiculoId, dataEntrada, statu
   });
 }
 
+async function removerOrdemServico(client, id) {
+  const anterior = await carregarOrdemCompleta(id, client);
+  if (!anterior) {
+    return false;
+  }
+  await client.query('DELETE FROM ordens_servico_servicos WHERE ordem_servico_id = $1', [id]);
+  await client.query('DELETE FROM ordens_servico_pecas WHERE ordem_servico_id = $1', [id]);
+  await client.query('DELETE FROM ordens_servico WHERE id = $1', [id]);
+  await registrarAuditoria(client, 'ordens_servico', id, 'DELETE', anterior, null);
+  return true;
+}
+
 async function deleteOrdemServico(id) {
-  return withTransaction(async client => {
-    const anterior = await carregarOrdemCompleta(id, client);
-    if (!anterior) {
-      return false;
-    }
-    await client.query('DELETE FROM ordens_servico_servicos WHERE ordem_servico_id = $1', [id]);
-    await client.query('DELETE FROM ordens_servico_pecas WHERE ordem_servico_id = $1', [id]);
-    await client.query('DELETE FROM ordens_servico WHERE id = $1', [id]);
-    await registrarAuditoria(client, 'ordens_servico', id, 'DELETE', anterior, null);
-    return true;
-  });
+  return withTransaction(async client => removerOrdemServico(client, id));
 }
 
 async function closePool() {
@@ -752,6 +805,7 @@ module.exports = {
   findVeiculoByPlaca,
   addVeiculo,
   updateVeiculo,
+  deleteVeiculo,
   getPecas,
   getPecaById,
   findPecaByNome,
@@ -764,6 +818,7 @@ module.exports = {
   findServicoByDescricao,
   addServico,
   updateServico,
+  deleteServico,
   getOrdensServico,
   getOrdemServicoById,
   addOrdemServico,
