@@ -68,6 +68,9 @@ export interface OrdemServicoItemPayload {
   qtde: number;
 }
 
+export type OrdemServicoServicoItem = OrdemServicoItemPayload & { descricao: string };
+export type OrdemServicoPecaItem = OrdemServicoItemPayload & { nome: string };
+
 export interface OrdemServicoPayload {
   cliente: {
     id?: number;
@@ -85,8 +88,8 @@ export interface OrdemServicoPayload {
   dataEntrada: string;
   status: OrdemServico['status'];
   observacoes?: string;
-  servicos: (OrdemServicoItemPayload & { descricao: string })[];
-  pecas: (OrdemServicoItemPayload & { nome: string })[];
+  servicos: OrdemServicoServicoItem[];
+  pecas: OrdemServicoPecaItem[];
 }
 
 export interface MenuItem {

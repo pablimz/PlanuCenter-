@@ -7,7 +7,16 @@ import { Router, RouterLink } from '@angular/router';
 import { DataService } from '../core/services/data.service';
 import { NotificationService } from '../core/services/notification.service';
 import { AutocompleteCriavelComponent, AutocompleteOption, AutocompleteValue } from '../core/components/autocomplete-criavel.component';
-import { Cliente, OrdemServico, OrdemServicoPayload, Peca, Servico, Veiculo } from '../core/models/models';
+import {
+  Cliente,
+  OrdemServico,
+  OrdemServicoPayload,
+  OrdemServicoPecaItem,
+  OrdemServicoServicoItem,
+  Peca,
+  Servico,
+  Veiculo,
+} from '../core/models/models';
 import { calcularTotaisFinanceiros, montarResumoFinanceiroOrdem } from '../core/utils/ordem-financeiro';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -30,6 +39,8 @@ type FormularioOrdemGroup = FormGroup<{
   servicos: FormArray<ItemFormularioGroup<Servico>>;
   pecas: FormArray<ItemFormularioGroup<Peca>>;
 }>;
+
+const removerNulos = <T>(valor: T | null | undefined): valor is T => valor != null;
 
 @Component({
   selector: 'app-ordens-servico',
@@ -880,34 +891,36 @@ export class OrdensServicoComponent {
     }
 
     const servicos = this.servicosFormArray.controls
-      .map(grupo => {
+      .map((grupo): OrdemServicoServicoItem | null => {
         const selecao = grupo.controls.selecao.value;
         if (!selecao || !selecao.label?.trim()) {
           return null;
         }
-        return {
-          id: this.obterIdNumero(selecao),
+        const id = this.obterIdNumero(selecao);
+        const itemBase: OrdemServicoServicoItem = {
           descricao: selecao.data?.descricao ?? selecao.label.trim(),
           preco: Math.max(0, Number(grupo.controls.valorUnitario.value) || 0),
           qtde: Math.max(1, Number(grupo.controls.qtde.value) || 1),
         };
+        return id != null ? { ...itemBase, id } : itemBase;
       })
-      .filter((item): item is OrdemServicoPayload['servicos'][number] => item !== null);
+      .filter(removerNulos);
 
     const pecas = this.pecasFormArray.controls
-      .map(grupo => {
+      .map((grupo): OrdemServicoPecaItem | null => {
         const selecao = grupo.controls.selecao.value;
         if (!selecao || !selecao.label?.trim()) {
           return null;
         }
-        return {
-          id: this.obterIdNumero(selecao),
+        const id = this.obterIdNumero(selecao);
+        const itemBase: OrdemServicoPecaItem = {
           nome: selecao.data?.nome ?? selecao.label.trim(),
           preco: Math.max(0, Number(grupo.controls.valorUnitario.value) || 0),
           qtde: Math.max(1, Number(grupo.controls.qtde.value) || 1),
         };
+        return id != null ? { ...itemBase, id } : itemBase;
       })
-      .filter((item): item is OrdemServicoPayload['pecas'][number] => item !== null);
+      .filter(removerNulos);
 
     if (!servicos.length && !pecas.length) {
       camposInvalidos.push('servicos', 'pecas');
