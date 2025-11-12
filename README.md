@@ -4,7 +4,7 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 
 ## Development server
 
-This project now possui um backend Node.js simples responsável por persistir os dados em `server/database.json`. Para desenvolver:
+This project now possui um backend Node.js que persiste os dados em um banco PostgreSQL. Para desenvolver:
 
 1. Em um terminal, inicie a API local:
 
@@ -12,7 +12,7 @@ This project now possui um backend Node.js simples responsável por persistir os
    npm run server
    ```
 
-   O serviço estará disponível em `http://localhost:3000/api`.
+   O serviço estará disponível em `http://localhost:3000/api`. Antes de iniciar, configure a conexão com o banco seguindo as instruções abaixo.
 
 2. Em outro terminal, suba a aplicação Angular:
 
@@ -22,7 +22,39 @@ This project now possui um backend Node.js simples responsável por persistir os
 
    Acesse `http://localhost:4200/` no navegador. As alterações nos arquivos front-end recarregam automaticamente a página.
 
-> **Evite erros no console**: Se o frontend for aberto sem a API rodando, as chamadas HTTP resultarão em mensagens de erro. O serviço de dados agora entra automaticamente em um **modo offline** e exibe informações locais somente leitura, mas para trabalhar com dados reais (e impedir as mensagens de erro) mantenha `npm run server` ativo em paralelo ao `ng serve`.
+> **Evite erros no console**: Se o frontend for aberto sem a API rodando, as chamadas HTTP resultarão em mensagens de erro. O serviço de dados continua entrando automaticamente em um **modo offline** e exibe informações locais somente leitura, mas para trabalhar com dados reais (e impedir as mensagens de erro) mantenha `npm run server` ativo em paralelo ao `ng serve`.
+
+## Configurando o PostgreSQL
+
+O backend lê as credenciais de acesso ao banco via variáveis de ambiente. Crie um arquivo `.env` na raiz do projeto (ou defina as variáveis diretamente no ambiente) com os campos abaixo:
+
+```ini
+# Exemplo básico — ajuste conforme o seu servidor
+PGHOST=localhost
+PGPORT=5432
+PGDATABASE=planucenter
+PGUSER=postgres
+PGPASSWORD=postgres
+# Para provedores gerenciados que exigem SSL, habilite:
+# PGSSLMODE=require
+
+# Também é possível utilizar uma string completa:
+# DATABASE_URL=postgres://usuario:senha@host:5432/planucenter
+```
+
+Após configurar a conexão execute:
+
+```bash
+npm install
+# (Opcional) Popula o PostgreSQL com os dados de server/database.json caso o banco esteja vazio
+npm run db:migrate
+```
+
+O arquivo `server/database.json` permanece disponível apenas como fallback offline para o frontend e como fonte de dados para a migração inicial. Em produção os dados oficiais passam a residir exclusivamente no PostgreSQL.
+
+## Auditoria das operações
+
+Toda inserção, atualização ou exclusão nas tabelas de clientes, veículos, peças, serviços e ordens registra automaticamente uma linha em `auditoria_operacoes`. Cada registro inclui a tabela afetada, o ID do item, a ação (`INSERT`, `UPDATE` ou `DELETE`) e os estados anterior/posterior em formato JSON, além do carimbo de data/hora. Esse log pode ser consultado diretamente no banco para rastreabilidade.
 
 ### Credenciais de acesso de demonstração
 
@@ -37,8 +69,8 @@ O painel exige autenticação. Utilize um dos logins abaixo para acessar todos o
 
 - **Gestão de ordens de serviço completa**: criação, edição, exclusão, seleção de serviços e peças com cálculo automático dos totais.
 - **Resumo com impressão em PDF**: cada ordem possui um resumo detalhado com botão de impressão dedicado.
-- **Filtros instantâneos** em todas as listas (clientes, veículos, estoque e ordens) para localizar registros rapidamente.
-- **Ações administrativas seguras**: exclusão de clientes, veículos, peças e ordens diretamente das telas de edição, com confirmação.
+- **Filtros instantâneos** em todas as listas (clientes, estoque e ordens) para localizar registros rapidamente.
+- **Ações administrativas seguras**: exclusão de clientes, peças e ordens diretamente das telas de edição, com confirmação.
 - **Modo offline inteligente**: caso a API fique indisponível, os dados locais continuam acessíveis e sincronizam assim que o servidor volta a responder.
 
 ## Code scaffolding
