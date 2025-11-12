@@ -577,7 +577,17 @@ export class OrdensServicoComponent {
 
   formularioOrdem: FormularioOrdemGroup = this.criarFormularioInicial();
 
-  trackByControl = (_index: number, control: AbstractControl) => control;
+  private controlTrackIds = new WeakMap<AbstractControl, number>();
+  private controlTrackSequence = 0;
+
+  trackByControl = (_index: number, control: AbstractControl) => {
+    let id = this.controlTrackIds.get(control);
+    if (id == null) {
+      id = ++this.controlTrackSequence;
+      this.controlTrackIds.set(control, id);
+    }
+    return id;
+  };
 
   constructor() {
     this.configurarReacoesFormulario();
