@@ -1,38 +1,69 @@
 
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import {
+  AbstractControl,
+  FormArray,
+  FormBuilder,
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { DataService } from '../core/services/data.service';
 import { NotificationService } from '../core/services/notification.service';
 import { AutocompleteCriavelComponent, AutocompleteOption, AutocompleteValue } from '../core/components/autocomplete-criavel.component';
-import { Cliente, OrdemServico, OrdemServicoPayload, Peca, Servico, Veiculo } from '../core/models/models';
+import {
+  Cliente,
+  OrdemServico,
+  OrdemServicoPayload,
+  OrdemServicoPecaItem,
+  OrdemServicoServicoItem,
+  Peca,
+  Servico,
+  Veiculo,
+} from '../core/models/models';
 import { calcularTotaisFinanceiros, montarResumoFinanceiroOrdem } from '../core/utils/ordem-financeiro';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 type StatusOrdem = OrdemServico['status'];
 
 type SelecaoCriavel<T = unknown> = AutocompleteValue<T>;
 
-interface ItemFormulario<T = unknown> {
-  selecao: SelecaoCriavel<T>;
-  qtde: number;
-  valorUnitario: number;
-}
+type ServicoFormularioGroup = FormGroup<{
+  id: FormControl<number | null>;
+  descricao: FormControl<string>;
+  qtde: FormControl<number>;
+  preco: FormControl<number>;
+  selecao: FormControl<SelecaoCriavel<Servico> | null>;
+}>;
 
-interface FormularioOrdem {
-  cliente: SelecaoCriavel<Cliente>;
-  veiculo: SelecaoCriavel<Veiculo>;
-  dataEntrada: string;
-  status: SelecaoCriavel<{ valor: StatusOrdem }>;
-  observacoes: string;
-  servicos: ItemFormulario<Servico>[];
-  pecas: ItemFormulario<Peca>[];
-}
+type PecaFormularioGroup = FormGroup<{
+  id: FormControl<number | null>;
+  nome: FormControl<string>;
+  qtde: FormControl<number>;
+  preco: FormControl<number>;
+  selecao: FormControl<SelecaoCriavel<Peca> | null>;
+}>;
+
+type FormularioOrdemGroup = FormGroup<{
+  cliente: FormControl<SelecaoCriavel<Cliente> | null>;
+  veiculo: FormControl<SelecaoCriavel<Veiculo> | null>;
+  dataEntrada: FormControl<string>;
+  status: FormControl<SelecaoCriavel<{ valor: StatusOrdem }> | null>;
+  observacoes: FormControl<string>;
+  servicos: FormArray<ServicoFormularioGroup>;
+  pecas: FormArray<PecaFormularioGroup>;
+}>;
+
+const removerNulos = <T>(valor: T | null | undefined): valor is T => valor != null;
 
 @Component({
   selector: 'app-ordens-servico',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, AutocompleteCriavelComponent],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterLink, AutocompleteCriavelComponent],
   template: `
     <section class="rounded-3xl border border-white/10 bg-slate-900/50 p-6 shadow-2xl shadow-slate-950/30 backdrop-blur sm:p-8">
       <div class="flex flex-col gap-6">
@@ -93,7 +124,16 @@ interface FormularioOrdem {
                   @if (ordensFiltradas().length) {
                     @for (item of ordensFiltradas(); track item.ordem.id) {
                       <tr class="transition hover:bg-white/5">
-                        <td class="whitespace-nowrap px-6 py-4 font-semibold text-sky-300">#{{ item.ordem.id }}</td>
+                        <td class="whitespace-nowrap px-6 py-4 font-semibold text-sky-300">
+                          <a
+                            [routerLink]="['/ordens-servico', item.ordem.id]"
+                            target="_blank"
+                            rel="noopener"
+                            class="transition hover:text-sky-200"
+                          >
+                            #{{ item.ordem.id }}
+                          </a>
+                        </td>
                         <td class="px-6 py-4">{{ item.cliente?.nome || 'Cliente removido' }}</td>
                         <td class="px-6 py-4">
                           @if (item.veiculo) {
@@ -125,6 +165,7 @@ interface FormularioOrdem {
                             <a
                               class="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-4 py-1.5 text-xs font-semibold text-white shadow shadow-slate-950/40 transition hover:from-sky-400 hover:to-indigo-400"
                               [routerLink]="['/ordens-servico', item.ordem.id]"
+                              [queryParams]="{ autoPrint: true }"
                               target="_blank"
                               rel="noopener"
                             >
@@ -179,15 +220,14 @@ interface FormularioOrdem {
               </div>
             </div>
 
-            <form class="grid gap-5 md:grid-cols-2" (ngSubmit)="salvarOrdem()">
+            <form class="grid gap-5 md:grid-cols-2" [formGroup]="formularioOrdem" (ngSubmit)="salvarOrdem()">
               <label class="flex flex-col text-sm text-slate-200">
                 Cliente
                 <div class="mt-2">
                   <app-autocomplete-criavel
                     name="cliente"
                     [options]="opcoesClientes()"
-                    [(ngModel)]="formularioOrdem.cliente"
-                    (ngModelChange)="aoAlterarCliente($event)"
+                    formControlName="cliente"
                     placeholder="Selecione ou cadastre um cliente"
                     [invalid]="campoInvalido('cliente')"
                   ></app-autocomplete-criavel>
@@ -203,8 +243,7 @@ interface FormularioOrdem {
                   <app-autocomplete-criavel
                     name="veiculo"
                     [options]="opcoesVeiculosDisponiveis()"
-                    [(ngModel)]="formularioOrdem.veiculo"
-                    (ngModelChange)="aoAlterarVeiculo($event)"
+                    formControlName="veiculo"
                     placeholder="Informe ou crie um veículo"
                     [invalid]="campoInvalido('veiculo')"
                   ></app-autocomplete-criavel>
@@ -220,9 +259,7 @@ interface FormularioOrdem {
                   type="date"
                   class="mt-2 rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-400 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
                   [ngClass]="{'border-rose-500/60 focus:border-rose-400 focus:ring-rose-400/40': campoInvalido('dataEntrada')}"
-                  [(ngModel)]="formularioOrdem.dataEntrada"
-                  name="dataEntrada"
-                  (ngModelChange)="aoAlterarDataEntrada($event)"
+                  formControlName="dataEntrada"
                   required
                 />
                 @if (campoInvalido('dataEntrada')) {
@@ -237,8 +274,7 @@ interface FormularioOrdem {
                     name="status"
                     [options]="statusOptions"
                     [allowCustom]="false"
-                    [(ngModel)]="formularioOrdem.status"
-                    (ngModelChange)="aoAlterarStatus($event)"
+                    formControlName="status"
                     placeholder="Selecione um status"
                     [invalid]="campoInvalido('status')"
                   ></app-autocomplete-criavel>
@@ -253,8 +289,7 @@ interface FormularioOrdem {
                 <textarea
                   rows="4"
                   class="mt-2 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-400 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                  [(ngModel)]="formularioOrdem.observacoes"
-                  name="observacoes"
+                  formControlName="observacoes"
                   placeholder="Inclua detalhes adicionais, diagnósticos ou autorizações"
                 ></textarea>
               </label>
@@ -262,6 +297,7 @@ interface FormularioOrdem {
               <div
                 class="md:col-span-2 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5"
                 [ngClass]="{ 'border-rose-500/60': campoInvalido('servicos') }"
+                formArrayName="servicos"
               >
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-200">Serviços aplicados</h4>
@@ -274,17 +310,16 @@ interface FormularioOrdem {
                   <p class="text-xs text-rose-300">Inclua ao menos um serviço ou peça.</p>
                 }
 
-                @if (formularioOrdem.servicos.length) {
+                @if (servicosFormArray.length) {
                   <div class="space-y-3">
-                    @for (item of formularioOrdem.servicos; track $index; let index = $index) {
-                      <div class="grid gap-3 rounded-2xl bg-slate-900/40 p-4 sm:grid-cols-[minmax(0,1fr)_120px_140px_40px] sm:items-end">
+                    @for (item of servicosFormArray.controls; track trackByControl; let index = $index) {
+                      <div class="grid gap-3 rounded-2xl bg-slate-900/40 p-4 sm:grid-cols-[minmax(0,1fr)_120px_140px_40px] sm:items-end" [formGroupName]="index">
                         <label class="flex flex-col text-sm text-slate-200 sm:col-span-1">
                           <span class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Serviço</span>
                           <app-autocomplete-criavel
                             [name]="'servico-' + index"
                             [options]="opcoesServicos()"
-                            [ngModel]="item.selecao"
-                            (ngModelChange)="atualizarServicoSelecionado(index, $event)"
+                            formControlName="selecao"
                             placeholder="Digite ou selecione um serviço"
                           ></app-autocomplete-criavel>
                         </label>
@@ -295,8 +330,7 @@ interface FormularioOrdem {
                             type="number"
                             min="1"
                             class="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                            [ngModel]="item.qtde"
-                            (ngModelChange)="atualizarQuantidadeServico(index, $event)"
+                            formControlName="qtde"
                           />
                         </label>
 
@@ -307,8 +341,7 @@ interface FormularioOrdem {
                             min="0"
                             step="0.01"
                             class="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                            [ngModel]="item.valorUnitario"
-                            (ngModelChange)="atualizarValorServico(index, $event)"
+                            formControlName="preco"
                           />
                         </label>
 
@@ -326,6 +359,7 @@ interface FormularioOrdem {
               <div
                 class="md:col-span-2 space-y-4 rounded-2xl border border-white/10 bg-white/5 p-5"
                 [ngClass]="{ 'border-rose-500/60': campoInvalido('pecas') }"
+                formArrayName="pecas"
               >
                 <div class="flex flex-wrap items-center justify-between gap-3">
                   <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-200">Peças utilizadas</h4>
@@ -338,17 +372,16 @@ interface FormularioOrdem {
                   <p class="text-xs text-rose-300">Inclua ao menos um serviço ou peça.</p>
                 }
 
-                @if (formularioOrdem.pecas.length) {
+                @if (pecasFormArray.length) {
                   <div class="space-y-3">
-                    @for (item of formularioOrdem.pecas; track $index; let index = $index) {
-                      <div class="grid gap-3 rounded-2xl bg-slate-900/40 p-4 sm:grid-cols-[minmax(0,1fr)_120px_140px_40px] sm:items-end">
+                    @for (item of pecasFormArray.controls; track trackByControl; let index = $index) {
+                      <div class="grid gap-3 rounded-2xl bg-slate-900/40 p-4 sm:grid-cols-[minmax(0,1fr)_120px_140px_40px] sm:items-end" [formGroupName]="index">
                         <label class="flex flex-col text-sm text-slate-200 sm:col-span-1">
                           <span class="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Peça</span>
                           <app-autocomplete-criavel
                             [name]="'peca-' + index"
                             [options]="opcoesPecas()"
-                            [ngModel]="item.selecao"
-                            (ngModelChange)="atualizarPecaSelecionada(index, $event)"
+                            formControlName="selecao"
                             placeholder="Digite ou selecione uma peça"
                           ></app-autocomplete-criavel>
                         </label>
@@ -359,8 +392,7 @@ interface FormularioOrdem {
                             type="number"
                             min="1"
                             class="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                            [ngModel]="item.qtde"
-                            (ngModelChange)="atualizarQuantidadePeca(index, $event)"
+                            formControlName="qtde"
                           />
                         </label>
 
@@ -371,8 +403,7 @@ interface FormularioOrdem {
                             min="0"
                             step="0.01"
                             class="rounded-xl border border-white/10 bg-slate-900/60 px-4 py-2 text-sm text-slate-100 shadow-inner shadow-slate-950/40 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                            [ngModel]="item.valorUnitario"
-                            (ngModelChange)="atualizarValorPeca(index, $event)"
+                            formControlName="preco"
                           />
                         </label>
 
@@ -527,6 +558,8 @@ export class OrdensServicoComponent {
   private dataService = inject(DataService);
   private router = inject(Router);
   private notifications = inject(NotificationService);
+  private fb = inject(FormBuilder);
+  private destroyRef = inject(DestroyRef);
 
   ordensServico = this.dataService.ordensServico;
   veiculos = this.dataService.veiculos;
@@ -542,7 +575,31 @@ export class OrdensServicoComponent {
   tentouSalvar = signal(false);
   camposInvalidos = signal<ReadonlySet<string>>(new Set<string>());
 
-  formularioOrdem: FormularioOrdem = this.criarFormularioInicial();
+  formularioOrdem: FormularioOrdemGroup = this.criarFormularioInicial();
+
+  private controlTrackIds = new WeakMap<AbstractControl, number>();
+  private controlTrackSequence = 0;
+
+  trackByControl = (_index: number, control: AbstractControl) => {
+    let id = this.controlTrackIds.get(control);
+    if (id == null) {
+      id = ++this.controlTrackSequence;
+      this.controlTrackIds.set(control, id);
+    }
+    return id;
+  };
+
+  constructor() {
+    this.configurarReacoesFormulario();
+  }
+
+  get servicosFormArray(): FormArray<ServicoFormularioGroup> {
+    return this.formularioOrdem.controls.servicos;
+  }
+
+  get pecasFormArray(): FormArray<PecaFormularioGroup> {
+    return this.formularioOrdem.controls.pecas;
+  }
 
   statusOptions: AutocompleteOption<{ valor: StatusOrdem }>[] = [
     { id: 'Em Andamento', label: 'Em Andamento', data: { valor: 'Em Andamento' } },
@@ -634,7 +691,7 @@ export class OrdensServicoComponent {
 
   abrirFormulario() {
     this.editandoId.set(null);
-    this.formularioOrdem = this.criarFormularioInicial();
+    this.resetarFormulario();
     this.modoVisualizacao.set('formulario');
     this.ordemSelecionadaId.set(null);
     this.limparValidacaoCampos();
@@ -647,7 +704,7 @@ export class OrdensServicoComponent {
         return;
       }
       this.editandoId.set(ordem.id);
-      this.formularioOrdem = this.criarFormularioAPartirDaOrdem(ordem);
+      this.preencherFormularioComOrdem(ordem);
       this.modoVisualizacao.set('formulario');
       this.ordemSelecionadaId.set(null);
       this.limparValidacaoCampos();
@@ -668,35 +725,25 @@ export class OrdensServicoComponent {
     this.modoVisualizacao.set('lista');
     this.ordemSelecionadaId.set(null);
     this.editandoId.set(null);
-    this.formularioOrdem = this.criarFormularioInicial();
+    this.resetarFormulario();
     this.limparValidacaoCampos();
   }
 
-  aoAlterarCliente(selecao: SelecaoCriavel<Cliente>) {
+  aoAlterarCliente(selecao: SelecaoCriavel<Cliente> | null) {
     const clienteId = this.obterIdNumero(selecao);
-    const veiculoAtual = this.formularioOrdem.veiculo;
-    const veiculoAjustado = clienteId
-      ? veiculoAtual && this.veiculos().some(veiculo => veiculo.id === veiculoAtual?.id && veiculo.clienteId === clienteId)
-        ? veiculoAtual
-        : null
-      : null;
-    this.formularioOrdem = { ...this.formularioOrdem, cliente: selecao, veiculo: veiculoAjustado };
+    const veiculoControl = this.formularioOrdem.controls.veiculo;
+    const veiculoAtual = veiculoControl.value;
+    const veiculoValido =
+      clienteId != null &&
+      veiculoAtual != null &&
+      this.veiculos().some(veiculo => veiculo.id === veiculoAtual.id && veiculo.clienteId === clienteId);
+
+    if (!clienteId || !veiculoValido) {
+      if (veiculoControl.value !== null) {
+        veiculoControl.setValue(null, { emitEvent: false });
+      }
+    }
     this.removerCampoInvalido('cliente');
-  }
-
-  aoAlterarVeiculo(selecao: SelecaoCriavel<Veiculo>) {
-    this.formularioOrdem = { ...this.formularioOrdem, veiculo: selecao };
-    this.removerCampoInvalido('veiculo');
-  }
-
-  aoAlterarStatus(selecao: SelecaoCriavel<{ valor: StatusOrdem }>) {
-    this.formularioOrdem = { ...this.formularioOrdem, status: selecao };
-    this.removerCampoInvalido('status');
-  }
-
-  aoAlterarDataEntrada(valor: string) {
-    this.formularioOrdem = { ...this.formularioOrdem, dataEntrada: valor };
-    this.removerCampoInvalido('dataEntrada');
   }
 
   opcoesClientes(): AutocompleteOption<Cliente>[] {
@@ -704,7 +751,8 @@ export class OrdensServicoComponent {
   }
 
   opcoesVeiculosDisponiveis(): AutocompleteOption<Veiculo>[] {
-    const clienteId = this.obterIdNumero(this.formularioOrdem.cliente);
+    const clienteSelecao = this.formularioOrdem.controls.cliente.value;
+    const clienteId = this.obterIdNumero(clienteSelecao);
     const lista = clienteId ? this.veiculos().filter(veiculo => veiculo.clienteId === clienteId) : this.veiculos();
     return lista.map(veiculo => ({
       id: veiculo.id,
@@ -730,86 +778,31 @@ export class OrdensServicoComponent {
   }
 
   adicionarServico() {
-    const servicos = [...this.formularioOrdem.servicos, this.criarItemFormulario<Servico>()];
-    this.formularioOrdem = { ...this.formularioOrdem, servicos };
-    this.atualizarIndicadoresItens();
-  }
-
-  atualizarServicoSelecionado(index: number, selecao: SelecaoCriavel<Servico>) {
-    const servicos = this.formularioOrdem.servicos.map((item, idx) => {
-      if (idx !== index) {
-        return item;
-      }
-      const valorUnitario = selecao?.data?.preco ?? item.valorUnitario;
-      return { ...item, selecao, valorUnitario };
-    });
-    this.formularioOrdem = { ...this.formularioOrdem, servicos };
-    this.atualizarIndicadoresItens();
-  }
-
-  atualizarQuantidadeServico(index: number, quantidade: number) {
-    const valor = Math.max(1, Math.trunc(Number(quantidade) || 1));
-    const servicos = this.formularioOrdem.servicos.map((item, idx) =>
-      idx === index ? { ...item, qtde: valor } : item
-    );
-    this.formularioOrdem = { ...this.formularioOrdem, servicos };
-    this.atualizarIndicadoresItens();
-  }
-
-  atualizarValorServico(index: number, valor: number) {
-    const unitario = Math.max(0, Number(valor) || 0);
-    const servicos = this.formularioOrdem.servicos.map((item, idx) =>
-      idx === index ? { ...item, valorUnitario: unitario } : item
-    );
-    this.formularioOrdem = { ...this.formularioOrdem, servicos };
+    this.servicosFormArray.push(this.criarServicoFormulario());
     this.atualizarIndicadoresItens();
   }
 
   removerServico(index: number) {
-    const servicos = this.formularioOrdem.servicos.filter((_, idx) => idx !== index);
-    this.formularioOrdem = { ...this.formularioOrdem, servicos: servicos.length ? servicos : [this.criarItemFormulario<Servico>()] };
+    if (index < 0 || index >= this.servicosFormArray.length) {
+      return;
+    }
+    this.servicosFormArray.removeAt(index);
+    if (!this.servicosFormArray.length) {
+      this.servicosFormArray.push(this.criarServicoFormulario());
+    }
     this.atualizarIndicadoresItens();
   }
 
   adicionarPeca() {
-    const pecas = [...this.formularioOrdem.pecas, this.criarItemFormulario<Peca>()];
-    this.formularioOrdem = { ...this.formularioOrdem, pecas };
-    this.atualizarIndicadoresItens();
-  }
-
-  atualizarPecaSelecionada(index: number, selecao: SelecaoCriavel<Peca>) {
-    const pecas = this.formularioOrdem.pecas.map((item, idx) => {
-      if (idx !== index) {
-        return item;
-      }
-      const valorUnitario = selecao?.data?.preco ?? item.valorUnitario;
-      return { ...item, selecao, valorUnitario };
-    });
-    this.formularioOrdem = { ...this.formularioOrdem, pecas };
-    this.atualizarIndicadoresItens();
-  }
-
-  atualizarQuantidadePeca(index: number, quantidade: number) {
-    const valor = Math.max(1, Math.trunc(Number(quantidade) || 1));
-    const pecas = this.formularioOrdem.pecas.map((item, idx) =>
-      idx === index ? { ...item, qtde: valor } : item
-    );
-    this.formularioOrdem = { ...this.formularioOrdem, pecas };
-    this.atualizarIndicadoresItens();
-  }
-
-  atualizarValorPeca(index: number, valor: number) {
-    const unitario = Math.max(0, Number(valor) || 0);
-    const pecas = this.formularioOrdem.pecas.map((item, idx) =>
-      idx === index ? { ...item, valorUnitario: unitario } : item
-    );
-    this.formularioOrdem = { ...this.formularioOrdem, pecas };
+    this.pecasFormArray.push(this.criarPecaFormulario());
     this.atualizarIndicadoresItens();
   }
 
   removerPeca(index: number) {
-    const pecas = this.formularioOrdem.pecas.filter((_, idx) => idx !== index);
-    this.formularioOrdem = { ...this.formularioOrdem, pecas };
+    if (index < 0 || index >= this.pecasFormArray.length) {
+      return;
+    }
+    this.pecasFormArray.removeAt(index);
     this.atualizarIndicadoresItens();
   }
 
@@ -818,17 +811,17 @@ export class OrdensServicoComponent {
   }
 
   calcularTotalServicosSelecionados() {
-    return this.formularioOrdem.servicos.reduce((total, item) => {
-      const valor = Math.max(0, Number(item.valorUnitario) || 0);
-      const qtde = Math.max(1, Number(item.qtde) || 1);
+    return this.servicosFormArray.controls.reduce((total, grupo) => {
+      const valor = Math.max(0, Number(grupo.controls.preco.value) || 0);
+      const qtde = Math.max(1, Number(grupo.controls.qtde.value) || 1);
       return total + valor * qtde;
     }, 0);
   }
 
   calcularTotalPecasSelecionadas() {
-    return this.formularioOrdem.pecas.reduce((total, item) => {
-      const valor = Math.max(0, Number(item.valorUnitario) || 0);
-      const qtde = Math.max(1, Number(item.qtde) || 1);
+    return this.pecasFormArray.controls.reduce((total, grupo) => {
+      const valor = Math.max(0, Number(grupo.controls.preco.value) || 0);
+      const qtde = Math.max(1, Number(grupo.controls.qtde.value) || 1);
       return total + valor * qtde;
     }, 0);
   }
@@ -908,48 +901,70 @@ export class OrdensServicoComponent {
     const camposInvalidos: string[] = [];
     const mensagensErro: string[] = [];
 
-    const clienteSelecao = this.formularioOrdem.cliente;
+    const clienteSelecao = this.formularioOrdem.controls.cliente.value;
     if (!clienteSelecao || !clienteSelecao.label?.trim()) {
       camposInvalidos.push('cliente');
       mensagensErro.push('Informe um cliente.');
     }
 
-    const veiculoSelecao = this.formularioOrdem.veiculo;
+    const veiculoSelecao = this.formularioOrdem.controls.veiculo.value;
     if (!veiculoSelecao || !veiculoSelecao.label?.trim()) {
       camposInvalidos.push('veiculo');
       mensagensErro.push('Informe um veículo.');
     }
 
-    const dataEntrada = this.formularioOrdem.dataEntrada?.trim();
+    const dataEntrada = this.formularioOrdem.controls.dataEntrada.value?.trim();
     if (!dataEntrada) {
       camposInvalidos.push('dataEntrada');
       mensagensErro.push('Informe a data de entrada.');
     }
 
-    const statusSelecao = this.formularioOrdem.status;
+    const statusSelecao = this.formularioOrdem.controls.status.value;
     const statusValor = statusSelecao?.data?.valor ?? (statusSelecao?.label as StatusOrdem | undefined);
     if (!statusValor) {
       camposInvalidos.push('status');
       mensagensErro.push('Selecione um status válido.');
     }
 
-    const servicos = this.formularioOrdem.servicos
-      .filter(item => item.selecao && item.selecao.label?.trim() && item.qtde > 0)
-      .map(item => ({
-        id: this.obterIdNumero(item.selecao),
-        descricao: item.selecao!.data?.descricao ?? item.selecao!.label.trim(),
-        preco: Math.max(0, Number(item.valorUnitario) || 0),
-        qtde: Math.max(1, Number(item.qtde) || 1),
-      }));
+    const servicos = this.servicosFormArray
+      .getRawValue()
+      .map((item): OrdemServicoServicoItem | null => {
+        const selecao = item.selecao;
+        const descricao =
+          item.descricao?.trim() ||
+          (selecao?.data as Servico | undefined)?.descricao?.trim() ||
+          selecao?.label?.trim() ||
+          '';
+        if (!descricao) {
+          return null;
+        }
+        const qtde = Math.max(1, Number(item.qtde) || 1);
+        const preco = Math.max(0, Number(item.preco) || 0);
+        const base: OrdemServicoServicoItem = { descricao, qtde, preco };
+        const id = this.obterIdNumero(selecao) ?? (typeof item.id === 'number' ? item.id : undefined);
+        return id != null ? { ...base, id } : base;
+      })
+      .filter(removerNulos);
 
-    const pecas = this.formularioOrdem.pecas
-      .filter(item => item.selecao && item.selecao.label?.trim() && item.qtde > 0)
-      .map(item => ({
-        id: this.obterIdNumero(item.selecao),
-        nome: item.selecao!.data?.nome ?? item.selecao!.label.trim(),
-        preco: Math.max(0, Number(item.valorUnitario) || 0),
-        qtde: Math.max(1, Number(item.qtde) || 1),
-      }));
+    const pecas = this.pecasFormArray
+      .getRawValue()
+      .map((item): OrdemServicoPecaItem | null => {
+        const selecao = item.selecao;
+        const nome =
+          item.nome?.trim() ||
+          (selecao?.data as Peca | undefined)?.nome?.trim() ||
+          selecao?.label?.trim() ||
+          '';
+        if (!nome) {
+          return null;
+        }
+        const qtde = Math.max(1, Number(item.qtde) || 1);
+        const preco = Math.max(0, Number(item.preco) || 0);
+        const base: OrdemServicoPecaItem = { nome, qtde, preco };
+        const id = this.obterIdNumero(selecao) ?? (typeof item.id === 'number' ? item.id : undefined);
+        return id != null ? { ...base, id } : base;
+      })
+      .filter(removerNulos);
 
     if (!servicos.length && !pecas.length) {
       camposInvalidos.push('servicos', 'pecas');
@@ -968,7 +983,7 @@ export class OrdensServicoComponent {
       veiculo: this.montarDadosVeiculo(veiculoSelecao!),
       dataEntrada: dataEntrada!,
       status: statusValor!,
-      observacoes: this.formularioOrdem.observacoes.trim() || undefined,
+      observacoes: this.formularioOrdem.controls.observacoes.value.trim() || undefined,
       servicos,
       pecas,
     };
@@ -991,12 +1006,16 @@ export class OrdensServicoComponent {
   }
 
   private atualizarIndicadoresItens() {
-    const possuiServicosValidos = this.formularioOrdem.servicos.some(
-      item => item.selecao && item.selecao.label?.trim() && item.qtde > 0,
-    );
-    const possuiPecasValidas = this.formularioOrdem.pecas.some(
-      item => item.selecao && item.selecao.label?.trim() && item.qtde > 0,
-    );
+    const possuiServicosValidos = this.servicosFormArray.controls.some(grupo => {
+      const selecao = grupo.controls.selecao.value;
+      const descricao = grupo.controls.descricao.value?.trim();
+      return (!!selecao?.label?.trim() || !!descricao) && (grupo.controls.qtde.value ?? 0) > 0;
+    });
+    const possuiPecasValidas = this.pecasFormArray.controls.some(grupo => {
+      const selecao = grupo.controls.selecao.value;
+      const nome = grupo.controls.nome.value?.trim();
+      return (!!selecao?.label?.trim() || !!nome) && (grupo.controls.qtde.value ?? 0) > 0;
+    });
 
     if (possuiServicosValidos || possuiPecasValidas) {
       this.removerCampoInvalido('servicos');
@@ -1009,24 +1028,35 @@ export class OrdensServicoComponent {
     this.tentouSalvar.set(false);
   }
 
-  private criarFormularioInicial(): FormularioOrdem {
+  private criarFormularioInicial(): FormularioOrdemGroup {
     const hoje = new Date().toISOString().split('T')[0];
-    return {
+    return this.fb.group({
+      cliente: this.fb.control<SelecaoCriavel<Cliente> | null>(null),
+      veiculo: this.fb.control<SelecaoCriavel<Veiculo> | null>(null),
+      dataEntrada: new FormControl<string>(hoje, { nonNullable: true, validators: [Validators.required] }),
+      status: this.fb.control<SelecaoCriavel<{ valor: StatusOrdem }> | null>(null),
+      observacoes: new FormControl<string>('', { nonNullable: true }),
+      servicos: this.fb.array<ServicoFormularioGroup>([this.criarServicoFormulario()]),
+      pecas: this.fb.array<PecaFormularioGroup>([]),
+    }) as FormularioOrdemGroup;
+  }
+
+  private resetarFormulario() {
+    const hoje = new Date().toISOString().split('T')[0];
+    this.formularioOrdem.patchValue({
       cliente: null,
       veiculo: null,
       dataEntrada: hoje,
       status: null,
       observacoes: '',
-      servicos: [this.criarItemFormulario<Servico>()],
-      pecas: [],
-    };
+    });
+    this.servicosFormArray.clear();
+    this.servicosFormArray.push(this.criarServicoFormulario());
+    this.pecasFormArray.clear();
+    this.atualizarIndicadoresItens();
   }
 
-  private criarItemFormulario<T>(): ItemFormulario<T> {
-    return { selecao: null, qtde: 1, valorUnitario: 0 };
-  }
-
-  private criarFormularioAPartirDaOrdem(ordem: OrdemServico): FormularioOrdem {
+  private preencherFormularioComOrdem(ordem: OrdemServico) {
     const cliente = this.clientes().find(item => item.id === ordem.clienteId);
     const veiculo = this.veiculos().find(item => item.id === ordem.veiculoId);
     const clienteSelecao: SelecaoCriavel<Cliente> = cliente
@@ -1041,35 +1071,207 @@ export class OrdensServicoComponent {
       data: { valor: ordem.status },
     };
 
-    const servicos = ordem.servicos.length
-      ? ordem.servicos.map(item => {
-          const servico = this.servicos().find(serv => serv.id === item.id);
-          const selecao: SelecaoCriavel<Servico> = servico
-            ? { id: servico.id, label: this.formatarServicoLabel(servico), data: servico }
-            : { id: item.id, label: `Serviço #${item.id}` };
-          const valorUnitario = servico?.preco ?? 0;
-          return { selecao, qtde: item.qtde, valorUnitario };
-        })
-      : [this.criarItemFormulario<Servico>()];
-
-    const pecas = ordem.pecas.map(item => {
-      const peca = this.pecas().find(prod => prod.id === item.id);
-      const selecao: SelecaoCriavel<Peca> = peca
-        ? { id: peca.id, label: this.formatarPecaLabel(peca), data: peca }
-        : { id: item.id, label: `Peça #${item.id}` };
-      const valorUnitario = peca?.preco ?? 0;
-      return { selecao, qtde: item.qtde, valorUnitario };
-    });
-
-    return {
+    this.formularioOrdem.patchValue({
       cliente: clienteSelecao,
       veiculo: veiculoSelecao,
       dataEntrada: ordem.dataEntrada,
       status: statusSelecao,
       observacoes: ordem.observacoes || '',
-      servicos,
-      pecas,
-    };
+    });
+
+    this.servicosFormArray.clear();
+    if (ordem.servicos.length) {
+      ordem.servicos.forEach(item => {
+        const servico = this.servicos().find(serv => serv.id === item.id);
+        const selecao: SelecaoCriavel<Servico> = servico
+          ? { id: servico.id, label: this.formatarServicoLabel(servico), data: servico }
+          : { id: item.id, label: `Serviço #${item.id ?? ''}`.trim() };
+        this.servicosFormArray.push(
+          this.criarServicoFormulario({
+            id: servico?.id ?? item.id ?? null,
+            selecao,
+            descricao: servico?.descricao ?? selecao.label ?? 'Serviço',
+            qtde: item.qtde,
+            preco: servico?.preco ?? 0,
+          }),
+        );
+      });
+    } else {
+      this.servicosFormArray.push(this.criarServicoFormulario());
+    }
+
+    this.pecasFormArray.clear();
+    ordem.pecas.forEach(item => {
+      const peca = this.pecas().find(prod => prod.id === item.id);
+      const selecao: SelecaoCriavel<Peca> = peca
+        ? { id: peca.id, label: this.formatarPecaLabel(peca), data: peca }
+        : { id: item.id, label: `Peça #${item.id ?? ''}`.trim() };
+      this.pecasFormArray.push(
+        this.criarPecaFormulario({
+          id: peca?.id ?? item.id ?? null,
+          selecao,
+          nome: peca?.nome ?? selecao.label ?? 'Peça',
+          qtde: item.qtde,
+          preco: peca?.preco ?? 0,
+        }),
+      );
+    });
+
+    this.atualizarIndicadoresItens();
+  }
+
+  private configurarReacoesFormulario() {
+    this.formularioOrdem.controls.cliente.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(selecao => this.aoAlterarCliente(selecao));
+
+    this.formularioOrdem.controls.veiculo.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.removerCampoInvalido('veiculo'));
+
+    this.formularioOrdem.controls.status.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.removerCampoInvalido('status'));
+
+    this.formularioOrdem.controls.dataEntrada.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.removerCampoInvalido('dataEntrada'));
+
+    this.formularioOrdem.controls.observacoes.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.removerCampoInvalido('observacoes'));
+
+    this.servicosFormArray.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.atualizarIndicadoresItens());
+
+    this.pecasFormArray.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.atualizarIndicadoresItens());
+  }
+
+  private criarServicoFormulario(dados?: {
+    id?: number | null;
+    selecao?: SelecaoCriavel<Servico>;
+    descricao?: string;
+    qtde?: number;
+    preco?: number;
+  }): ServicoFormularioGroup {
+    const grupo = this.fb.group({
+      id: this.fb.control<number | null>(dados?.id ?? this.obterIdNumero(dados?.selecao) ?? null),
+      descricao: new FormControl<string>(dados?.descricao ?? '', { nonNullable: true }),
+      qtde: new FormControl<number>(Math.max(1, dados?.qtde ?? 1), {
+        nonNullable: true,
+        validators: [Validators.min(1)],
+      }),
+      preco: new FormControl<number>(Math.max(0, dados?.preco ?? 0), {
+        nonNullable: true,
+        validators: [Validators.min(0)],
+      }),
+      selecao: this.fb.control<SelecaoCriavel<Servico> | null>(dados?.selecao ?? null),
+    }) as ServicoFormularioGroup;
+
+    grupo.controls.selecao.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(valor => {
+        const id = this.obterIdNumero(valor) ?? null;
+        if (grupo.controls.id.value !== id) {
+          grupo.controls.id.setValue(id, { emitEvent: false });
+        }
+        const descricao = (valor?.data as Servico | undefined)?.descricao ?? valor?.label?.trim() ?? '';
+        if (descricao && grupo.controls.descricao.value !== descricao) {
+          grupo.controls.descricao.setValue(descricao, { emitEvent: false });
+        }
+        const precoSelecionado = (valor?.data as Servico | undefined)?.preco;
+        if (typeof precoSelecionado === 'number' && grupo.controls.preco.value !== precoSelecionado) {
+          grupo.controls.preco.setValue(Math.max(0, Number(precoSelecionado) || 0), { emitEvent: false });
+        }
+        this.atualizarIndicadoresItens();
+      });
+
+    grupo.controls.qtde.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(valor => {
+        const ajustado = Math.max(1, Math.trunc(Number(valor) || 1));
+        if (ajustado !== valor) {
+          grupo.controls.qtde.setValue(ajustado, { emitEvent: false });
+        }
+        this.atualizarIndicadoresItens();
+      });
+
+    grupo.controls.preco.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(valor => {
+        const ajustado = Math.max(0, Number(valor) || 0);
+        if (ajustado !== valor) {
+          grupo.controls.preco.setValue(ajustado, { emitEvent: false });
+        }
+        this.atualizarIndicadoresItens();
+      });
+
+    return grupo;
+  }
+
+  private criarPecaFormulario(dados?: {
+    id?: number | null;
+    selecao?: SelecaoCriavel<Peca>;
+    nome?: string;
+    qtde?: number;
+    preco?: number;
+  }): PecaFormularioGroup {
+    const grupo = this.fb.group({
+      id: this.fb.control<number | null>(dados?.id ?? this.obterIdNumero(dados?.selecao) ?? null),
+      nome: new FormControl<string>(dados?.nome ?? '', { nonNullable: true }),
+      qtde: new FormControl<number>(Math.max(1, dados?.qtde ?? 1), {
+        nonNullable: true,
+        validators: [Validators.min(1)],
+      }),
+      preco: new FormControl<number>(Math.max(0, dados?.preco ?? 0), {
+        nonNullable: true,
+        validators: [Validators.min(0)],
+      }),
+      selecao: this.fb.control<SelecaoCriavel<Peca> | null>(dados?.selecao ?? null),
+    }) as PecaFormularioGroup;
+
+    grupo.controls.selecao.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(valor => {
+        const id = this.obterIdNumero(valor) ?? null;
+        if (grupo.controls.id.value !== id) {
+          grupo.controls.id.setValue(id, { emitEvent: false });
+        }
+        const nome = (valor?.data as Peca | undefined)?.nome ?? valor?.label?.trim() ?? '';
+        if (nome && grupo.controls.nome.value !== nome) {
+          grupo.controls.nome.setValue(nome, { emitEvent: false });
+        }
+        const precoSelecionado = (valor?.data as Peca | undefined)?.preco;
+        if (typeof precoSelecionado === 'number' && grupo.controls.preco.value !== precoSelecionado) {
+          grupo.controls.preco.setValue(Math.max(0, Number(precoSelecionado) || 0), { emitEvent: false });
+        }
+        this.atualizarIndicadoresItens();
+      });
+
+    grupo.controls.qtde.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(valor => {
+        const ajustado = Math.max(1, Math.trunc(Number(valor) || 1));
+        if (ajustado !== valor) {
+          grupo.controls.qtde.setValue(ajustado, { emitEvent: false });
+        }
+        this.atualizarIndicadoresItens();
+      });
+
+    grupo.controls.preco.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(valor => {
+        const ajustado = Math.max(0, Number(valor) || 0);
+        if (ajustado !== valor) {
+          grupo.controls.preco.setValue(ajustado, { emitEvent: false });
+        }
+        this.atualizarIndicadoresItens();
+      });
+
+    return grupo;
   }
 
   private formatarPreco(valor: number) {
@@ -1084,14 +1286,14 @@ export class OrdensServicoComponent {
     return `${peca.nome} — ${this.formatarPreco(peca.preco)}`;
   }
 
-  private obterIdNumero(selecao: SelecaoCriavel): number | undefined {
+  private obterIdNumero(selecao: SelecaoCriavel | null | undefined): number | undefined {
     return typeof selecao?.id === 'number' ? selecao.id : undefined;
   }
 
-  private montarDadosVeiculo(selecao: SelecaoCriavel<Veiculo>): OrdemServicoPayload['veiculo'] {
+  private montarDadosVeiculo(selecao: SelecaoCriavel<Veiculo> | null): OrdemServicoPayload['veiculo'] {
     const label = selecao?.label?.trim() ?? '';
     const dados = selecao?.data;
-    const clienteId = this.obterIdNumero(this.formularioOrdem.cliente);
+    const clienteId = this.obterIdNumero(this.formularioOrdem.controls.cliente.value);
     if (!dados) {
       const [placaPossivel, ...restante] = label.split('-').map(parte => parte.trim()).filter(Boolean);
       const descricao = label || 'Veículo não informado';

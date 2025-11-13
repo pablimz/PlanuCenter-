@@ -83,6 +83,32 @@ async function withTransaction(callback) {
   }
 }
 
+async function ensureCascadeConstraint({ table, constraint, definition }) {
+  await query(
+    `
+    DO $$
+    BEGIN
+      PERFORM 1
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      WHERE n.nspname = 'public'
+        AND t.relname = '${table}'
+        AND c.conname = '${constraint}'
+        AND c.confdeltype = 'c';
+
+      IF NOT FOUND THEN
+        ALTER TABLE public.${table} DROP CONSTRAINT IF EXISTS ${constraint};
+        ALTER TABLE public.${table}
+          ADD CONSTRAINT ${constraint}
+          ${definition};
+      END IF;
+    END
+    $$;
+  `,
+  );
+}
+
 async function initializeDatabase() {
   await query(`
     CREATE TABLE IF NOT EXISTS clientes (
@@ -90,7 +116,12 @@ async function initializeDatabase() {
       nome TEXT NOT NULL,
       email TEXT,
       telefone TEXT,
-      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      endereco_rua TEXT,
+      endereco_numero TEXT,
+      endereco_cep TEXT,
+      endereco_cidade TEXT,
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
@@ -102,7 +133,8 @@ async function initializeDatabase() {
       modelo TEXT NOT NULL,
       ano TEXT NOT NULL,
       cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
-      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
@@ -113,7 +145,8 @@ async function initializeDatabase() {
       codigo TEXT NOT NULL UNIQUE,
       estoque INTEGER NOT NULL DEFAULT 0,
       preco NUMERIC(12,2) NOT NULL DEFAULT 0,
-      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
@@ -122,7 +155,8 @@ async function initializeDatabase() {
       id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
       descricao TEXT NOT NULL UNIQUE,
       preco NUMERIC(12,2) NOT NULL DEFAULT 0,
-      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
@@ -134,7 +168,8 @@ async function initializeDatabase() {
       data_entrada DATE NOT NULL,
       status TEXT NOT NULL,
       observacoes TEXT,
-      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
 
@@ -168,6 +203,42 @@ async function initializeDatabase() {
       executado_por TEXT
     );
   `);
+
+  await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS endereco_rua TEXT;`);
+  await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS endereco_numero TEXT;`);
+  await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS endereco_cep TEXT;`);
+  await query(`ALTER TABLE clientes ADD COLUMN IF NOT EXISTS endereco_cidade TEXT;`);
+  await query(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE pecas ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE pecas ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE servicos ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE servicos ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE ordens_servico ADD COLUMN IF NOT EXISTS criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+  await query(`ALTER TABLE ordens_servico ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();`);
+
+  await ensureCascadeConstraint({
+    table: 'veiculos',
+    constraint: 'veiculos_cliente_id_fkey',
+    definition: 'FOREIGN KEY (cliente_id) REFERENCES public.clientes(id) ON DELETE CASCADE',
+  });
+  await ensureCascadeConstraint({
+    table: 'ordens_servico',
+    constraint: 'ordens_servico_cliente_id_fkey',
+    definition: 'FOREIGN KEY (cliente_id) REFERENCES public.clientes(id) ON DELETE CASCADE',
+  });
+  await ensureCascadeConstraint({
+    table: 'ordens_servico_pecas',
+    constraint: 'ordens_servico_pecas_ordem_servico_id_fkey',
+    definition: 'FOREIGN KEY (ordem_servico_id) REFERENCES public.ordens_servico(id) ON DELETE CASCADE',
+  });
+  await ensureCascadeConstraint({
+    table: 'ordens_servico_servicos',
+    constraint: 'ordens_servico_servicos_ordem_servico_id_fkey',
+    definition: 'FOREIGN KEY (ordem_servico_id) REFERENCES public.ordens_servico(id) ON DELETE CASCADE',
+  });
 }
 
 function normalizarRegistro(registro) {
@@ -204,19 +275,27 @@ function mapCliente(row) {
     nome: row.nome,
     email: row.email ?? undefined,
     telefone: row.telefone ?? undefined,
+    enderecoRua: row.endereco_rua ?? undefined,
+    enderecoNumero: row.endereco_numero ?? undefined,
+    enderecoCep: row.endereco_cep ?? undefined,
+    enderecoCidade: row.endereco_cidade ?? undefined,
   };
 }
 
 async function getClientes() {
   const { rows } = await query(
-    'SELECT id, nome, email, telefone FROM clientes ORDER BY id DESC'
+    `SELECT id, nome, email, telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade
+     FROM clientes
+     ORDER BY id DESC`
   );
   return rows.map(mapCliente);
 }
 
 async function getClienteById(id, client) {
   const { rows } = await query(
-    'SELECT id, nome, email, telefone FROM clientes WHERE id = $1',
+    `SELECT id, nome, email, telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade
+     FROM clientes
+     WHERE id = $1`,
     [id],
     client,
   );
@@ -225,19 +304,30 @@ async function getClienteById(id, client) {
 
 async function findClienteByNome(nome) {
   const { rows } = await query(
-    'SELECT id, nome, email, telefone FROM clientes WHERE LOWER(nome) = LOWER($1) LIMIT 1',
+    `SELECT id, nome, email, telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade
+     FROM clientes
+     WHERE LOWER(nome) = LOWER($1)
+     LIMIT 1`,
     [nome],
   );
   return mapCliente(rows[0]);
 }
 
-async function addCliente({ nome, email, telefone }) {
+async function addCliente({ nome, email, telefone, enderecoRua, enderecoNumero, enderecoCep, enderecoCidade }) {
   return withTransaction(async client => {
     const { rows } = await client.query(
-      `INSERT INTO clientes (nome, email, telefone)
-       VALUES ($1, $2, $3)
-       RETURNING id, nome, email, telefone`,
-      [nome, email ?? null, telefone ?? null],
+      `INSERT INTO clientes (nome, email, telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, nome, email, telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade`,
+      [
+        nome,
+        email ?? null,
+        telefone ?? null,
+        enderecoRua ?? null,
+        enderecoNumero ?? null,
+        enderecoCep ?? null,
+        enderecoCidade ?? null,
+      ],
     );
     const cliente = mapCliente(rows[0]);
     await registrarAuditoria(client, 'clientes', cliente.id, 'INSERT', null, cliente);
@@ -245,7 +335,7 @@ async function addCliente({ nome, email, telefone }) {
   });
 }
 
-async function updateCliente(id, { nome, email, telefone }) {
+async function updateCliente(id, { nome, email, telefone, enderecoRua, enderecoNumero, enderecoCep, enderecoCidade }) {
   return withTransaction(async client => {
     const anterior = await getClienteById(id, client);
     if (!anterior) {
@@ -253,10 +343,26 @@ async function updateCliente(id, { nome, email, telefone }) {
     }
     const { rows } = await client.query(
       `UPDATE clientes
-       SET nome = $1, email = $2, telefone = $3
-       WHERE id = $4
-       RETURNING id, nome, email, telefone`,
-      [nome, email ?? null, telefone ?? null, id],
+       SET nome = $1,
+           email = $2,
+           telefone = $3,
+           endereco_rua = $4,
+           endereco_numero = $5,
+           endereco_cep = $6,
+           endereco_cidade = $7,
+           atualizado_em = NOW()
+       WHERE id = $8
+       RETURNING id, nome, email, telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade`,
+      [
+        nome,
+        email ?? null,
+        telefone ?? null,
+        enderecoRua ?? null,
+        enderecoNumero ?? null,
+        enderecoCep ?? null,
+        enderecoCidade ?? null,
+        id,
+      ],
     );
     const atualizado = mapCliente(rows[0]);
     await registrarAuditoria(client, 'clientes', id, 'UPDATE', anterior, atualizado);
@@ -265,17 +371,36 @@ async function updateCliente(id, { nome, email, telefone }) {
 }
 
 async function deleteCliente(id) {
-  return withTransaction(async (client) => {
+  return withTransaction(async client => {
     const anterior = await getClienteById(id, client);
     if (!anterior) {
       // não existe -> nada pra excluir
       return false;
     }
 
-    // tenta apagar o cliente
-    await client.query('DELETE FROM clientes WHERE id = $1', [id]);
+    const dependenciasResultado = await client.query(
+      `SELECT
+         (SELECT COUNT(*) FROM veiculos WHERE cliente_id = $1) AS veiculos,
+         (SELECT COUNT(*) FROM ordens_servico WHERE cliente_id = $1) AS ordens_servico`,
+      [id],
+    );
+    const dependencias = dependenciasResultado.rows?.[0] ?? { veiculos: 0, ordens_servico: 0 };
 
-    // registra na auditoria
+    try {
+      await client.query('DELETE FROM clientes WHERE id = $1', [id]);
+    } catch (error) {
+      if (error && error.code === '23503') {
+        const conflito = new Error('Cliente possui dependências e não pode ser removido.');
+        conflito.code = 'FK_DEPENDENCIAS';
+        conflito.details = {
+          veiculos: Number(dependencias.veiculos ?? 0),
+          ordensServico: Number(dependencias.ordens_servico ?? 0),
+        };
+        throw conflito;
+      }
+      throw error;
+    }
+
     await registrarAuditoria(
       client,
       'clientes',
@@ -361,13 +486,34 @@ async function updateVeiculo(id, { placa, marca, modelo, ano, clienteId }) {
     }
     await client.query(
       `UPDATE veiculos
-       SET placa = $1, marca = $2, modelo = $3, ano = $4, cliente_id = $5
+       SET placa = $1, marca = $2, modelo = $3, ano = $4, cliente_id = $5, atualizado_em = NOW()
        WHERE id = $6`,
       [placa, marca, modelo, ano, clienteId, id],
     );
     const atualizado = await getVeiculoById(id, client);
     await registrarAuditoria(client, 'veiculos', id, 'UPDATE', anterior, atualizado);
     return atualizado;
+  });
+}
+
+async function deleteVeiculo(id) {
+  return withTransaction(async client => {
+    const anterior = await getVeiculoById(id, client);
+    if (!anterior) {
+      return false;
+    }
+
+    const { rows: ordensRelacionadas } = await client.query(
+      'SELECT id FROM ordens_servico WHERE veiculo_id = $1',
+      [id],
+    );
+    for (const ordem of ordensRelacionadas) {
+      await removerOrdemServico(client, ordem.id);
+    }
+
+    await client.query('DELETE FROM veiculos WHERE id = $1', [id]);
+    await registrarAuditoria(client, 'veiculos', id, 'DELETE', anterior, null);
+    return true;
   });
 }
 
@@ -438,7 +584,7 @@ async function updatePeca(id, { nome, codigo, estoque = 0, preco = 0 }) {
     }
     const { rows } = await client.query(
       `UPDATE pecas
-       SET nome = $1, codigo = $2, estoque = $3, preco = $4
+       SET nome = $1, codigo = $2, estoque = $3, preco = $4, atualizado_em = NOW()
        WHERE id = $5
        RETURNING id, nome, codigo, estoque, preco`,
       [nome, codigo, estoque, preco, id],
@@ -533,7 +679,7 @@ async function updateServico(id, { descricao, preco = 0 }) {
     }
     const { rows } = await client.query(
       `UPDATE servicos
-       SET descricao = $1, preco = $2
+       SET descricao = $1, preco = $2, atualizado_em = NOW()
        WHERE id = $3
        RETURNING id, descricao, preco`,
       [descricao, preco, id],
@@ -541,6 +687,20 @@ async function updateServico(id, { descricao, preco = 0 }) {
     const atualizado = mapServico(rows[0]);
     await registrarAuditoria(client, 'servicos', id, 'UPDATE', anterior, atualizado);
     return atualizado;
+  });
+}
+
+async function deleteServico(id) {
+  return withTransaction(async client => {
+    const anterior = await getServicoById(id, client);
+    if (!anterior) {
+      return false;
+    }
+
+    await client.query('DELETE FROM ordens_servico_servicos WHERE servico_id = $1', [id]);
+    await client.query('DELETE FROM servicos WHERE id = $1', [id]);
+    await registrarAuditoria(client, 'servicos', id, 'DELETE', anterior, null);
+    return true;
   });
 }
 
@@ -703,7 +863,7 @@ async function updateOrdemServico(id, { clienteId, veiculoId, dataEntrada, statu
     }
     await client.query(
       `UPDATE ordens_servico
-       SET cliente_id = $1, veiculo_id = $2, data_entrada = $3, status = $4, observacoes = $5
+       SET cliente_id = $1, veiculo_id = $2, data_entrada = $3, status = $4, observacoes = $5, atualizado_em = NOW()
        WHERE id = $6`,
       [clienteId, veiculoId, dataEntrada, status, observacoes ?? null, id],
     );
@@ -721,18 +881,20 @@ async function updateOrdemServico(id, { clienteId, veiculoId, dataEntrada, statu
   });
 }
 
+async function removerOrdemServico(client, id) {
+  const anterior = await carregarOrdemCompleta(id, client);
+  if (!anterior) {
+    return false;
+  }
+  await client.query('DELETE FROM ordens_servico_servicos WHERE ordem_servico_id = $1', [id]);
+  await client.query('DELETE FROM ordens_servico_pecas WHERE ordem_servico_id = $1', [id]);
+  await client.query('DELETE FROM ordens_servico WHERE id = $1', [id]);
+  await registrarAuditoria(client, 'ordens_servico', id, 'DELETE', anterior, null);
+  return true;
+}
+
 async function deleteOrdemServico(id) {
-  return withTransaction(async client => {
-    const anterior = await carregarOrdemCompleta(id, client);
-    if (!anterior) {
-      return false;
-    }
-    await client.query('DELETE FROM ordens_servico_servicos WHERE ordem_servico_id = $1', [id]);
-    await client.query('DELETE FROM ordens_servico_pecas WHERE ordem_servico_id = $1', [id]);
-    await client.query('DELETE FROM ordens_servico WHERE id = $1', [id]);
-    await registrarAuditoria(client, 'ordens_servico', id, 'DELETE', anterior, null);
-    return true;
-  });
+  return withTransaction(async client => removerOrdemServico(client, id));
 }
 
 async function closePool() {
@@ -752,6 +914,7 @@ module.exports = {
   findVeiculoByPlaca,
   addVeiculo,
   updateVeiculo,
+  deleteVeiculo,
   getPecas,
   getPecaById,
   findPecaByNome,
@@ -764,6 +927,7 @@ module.exports = {
   findServicoByDescricao,
   addServico,
   updateServico,
+  deleteServico,
   getOrdensServico,
   getOrdemServicoById,
   addOrdemServico,

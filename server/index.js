@@ -13,18 +13,20 @@ const {
   findVeiculoByPlaca,
   addVeiculo,
   updateVeiculo,
+  deleteVeiculo,
   getPecas,
   getPecaById,
   findPecaByNome,
   findPecaByCodigo,
   addPeca,
   updatePeca,
-  deletePeca,         
+  deletePeca,
   getServicos,
   getServicoById,
   findServicoByDescricao,
   addServico,
   updateServico,
+  deleteServico,
   getOrdensServico,
   getOrdemServicoById,
   addOrdemServico,
@@ -122,15 +124,34 @@ async function gerarPlacaGenerica(baseTexto) {
 async function garantirClienteEntidade(info = {}) {
   const id = Number(info.id);
   const nome = normalizarTexto(info.nome);
+  const email = normalizarTexto(info.email);
+  const telefone = normalizarTexto(info.telefone);
+  const enderecoRua = normalizarTexto(info.enderecoRua || info.endereco_rua);
+  const enderecoNumero = normalizarTexto(info.enderecoNumero || info.endereco_numero);
+  const enderecoCep = normalizarTexto(info.enderecoCep || info.endereco_cep);
+  const enderecoCidade = normalizarTexto(info.enderecoCidade || info.endereco_cidade);
   if (id) {
     const existente = await getClienteById(id);
     if (existente) {
-      if (nome && existente.nome !== nome) {
-        await updateCliente(id, {
-          nome,
-          email: existente.email ?? undefined,
-          telefone: existente.telefone ?? undefined,
-        });
+      const dadosAtualizados = {
+        nome: nome || existente.nome,
+        email: email || existente.email || undefined,
+        telefone: telefone || existente.telefone || undefined,
+        enderecoRua: enderecoRua || existente.enderecoRua || undefined,
+        enderecoNumero: enderecoNumero || existente.enderecoNumero || undefined,
+        enderecoCep: enderecoCep || existente.enderecoCep || undefined,
+        enderecoCidade: enderecoCidade || existente.enderecoCidade || undefined,
+      };
+      const precisaAtualizar =
+        dadosAtualizados.nome !== existente.nome ||
+        dadosAtualizados.email !== (existente.email ?? undefined) ||
+        dadosAtualizados.telefone !== (existente.telefone ?? undefined) ||
+        dadosAtualizados.enderecoRua !== (existente.enderecoRua ?? undefined) ||
+        dadosAtualizados.enderecoNumero !== (existente.enderecoNumero ?? undefined) ||
+        dadosAtualizados.enderecoCep !== (existente.enderecoCep ?? undefined) ||
+        dadosAtualizados.enderecoCidade !== (existente.enderecoCidade ?? undefined);
+      if (precisaAtualizar) {
+        await updateCliente(id, dadosAtualizados);
       }
       return id;
     }
@@ -140,9 +161,37 @@ async function garantirClienteEntidade(info = {}) {
   }
   const existentePorNome = await findClienteByNome(nome);
   if (existentePorNome) {
+    const dadosAtualizados = {
+      nome: nome || existentePorNome.nome,
+      email: email || existentePorNome.email || undefined,
+      telefone: telefone || existentePorNome.telefone || undefined,
+      enderecoRua: enderecoRua || existentePorNome.enderecoRua || undefined,
+      enderecoNumero: enderecoNumero || existentePorNome.enderecoNumero || undefined,
+      enderecoCep: enderecoCep || existentePorNome.enderecoCep || undefined,
+      enderecoCidade: enderecoCidade || existentePorNome.enderecoCidade || undefined,
+    };
+    const precisaAtualizar =
+      dadosAtualizados.nome !== existentePorNome.nome ||
+      dadosAtualizados.email !== (existentePorNome.email ?? undefined) ||
+      dadosAtualizados.telefone !== (existentePorNome.telefone ?? undefined) ||
+      dadosAtualizados.enderecoRua !== (existentePorNome.enderecoRua ?? undefined) ||
+      dadosAtualizados.enderecoNumero !== (existentePorNome.enderecoNumero ?? undefined) ||
+      dadosAtualizados.enderecoCep !== (existentePorNome.enderecoCep ?? undefined) ||
+      dadosAtualizados.enderecoCidade !== (existentePorNome.enderecoCidade ?? undefined);
+    if (precisaAtualizar) {
+      await updateCliente(existentePorNome.id, dadosAtualizados);
+    }
     return existentePorNome.id;
   }
-  const novo = await addCliente({ nome });
+  const novo = await addCliente({
+    nome,
+    email: email || undefined,
+    telefone: telefone || undefined,
+    enderecoRua: enderecoRua || undefined,
+    enderecoNumero: enderecoNumero || undefined,
+    enderecoCep: enderecoCep || undefined,
+    enderecoCidade: enderecoCidade || undefined,
+  });
   return novo.id;
 }
 
@@ -416,8 +465,30 @@ async function handleRequest(req, res) {
       ...cliente,
       email: cliente.email ?? undefined,
       telefone: cliente.telefone ?? undefined,
+      enderecoRua: cliente.enderecoRua ?? undefined,
+      enderecoNumero: cliente.enderecoNumero ?? undefined,
+      enderecoCep: cliente.enderecoCep ?? undefined,
+      enderecoCidade: cliente.enderecoCidade ?? undefined,
     }));
     sendSuccess(res, 200, resposta);
+    return;
+  }
+
+  if (req.method === 'GET' && /^\/api\/clientes\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    const cliente = await getClienteById(id);
+    if (!cliente) {
+      throw new HttpError(404, 'Cliente não encontrado.');
+    }
+    sendSuccess(res, 200, {
+      ...cliente,
+      email: cliente.email ?? undefined,
+      telefone: cliente.telefone ?? undefined,
+      enderecoRua: cliente.enderecoRua ?? undefined,
+      enderecoNumero: cliente.enderecoNumero ?? undefined,
+      enderecoCep: cliente.enderecoCep ?? undefined,
+      enderecoCidade: cliente.enderecoCidade ?? undefined,
+    });
     return;
   }
 
@@ -426,6 +497,10 @@ async function handleRequest(req, res) {
     const nome = normalizarTexto(body.nome);
     const email = normalizarTexto(body.email);
     const telefone = normalizarTexto(body.telefone);
+    const enderecoRua = normalizarTexto(body.enderecoRua || body.endereco_rua);
+    const enderecoNumero = normalizarTexto(body.enderecoNumero || body.endereco_numero);
+    const enderecoCep = normalizarTexto(body.enderecoCep || body.endereco_cep);
+    const enderecoCidade = normalizarTexto(body.enderecoCidade || body.endereco_cidade);
     if (!nome) {
       throw new HttpError(400, 'Nome é obrigatório.');
     }
@@ -433,6 +508,10 @@ async function handleRequest(req, res) {
       nome,
       email: email || undefined,
       telefone: telefone || undefined,
+      enderecoRua: enderecoRua || undefined,
+      enderecoNumero: enderecoNumero || undefined,
+      enderecoCep: enderecoCep || undefined,
+      enderecoCidade: enderecoCidade || undefined,
     });
     sendSuccess(res, 201, novo);
     return;
@@ -444,6 +523,10 @@ async function handleRequest(req, res) {
     const nome = normalizarTexto(body.nome);
     const email = normalizarTexto(body.email);
     const telefone = normalizarTexto(body.telefone);
+    const enderecoRua = normalizarTexto(body.enderecoRua || body.endereco_rua);
+    const enderecoNumero = normalizarTexto(body.enderecoNumero || body.endereco_numero);
+    const enderecoCep = normalizarTexto(body.enderecoCep || body.endereco_cep);
+    const enderecoCidade = normalizarTexto(body.enderecoCidade || body.endereco_cidade);
     if (!nome) {
       throw new HttpError(400, 'Nome é obrigatório.');
     }
@@ -451,6 +534,10 @@ async function handleRequest(req, res) {
       nome,
       email: email || undefined,
       telefone: telefone || undefined,
+      enderecoRua: enderecoRua || undefined,
+      enderecoNumero: enderecoNumero || undefined,
+      enderecoCep: enderecoCep || undefined,
+      enderecoCidade: enderecoCidade || undefined,
     });
     if (!atualizado) {
       throw new HttpError(404, 'Cliente não encontrado.');
@@ -465,18 +552,43 @@ async function handleRequest(req, res) {
       throw new HttpError(400, 'ID de cliente inválido.');
     }
 
-    const removido = await deleteCliente(id);
-    if (!removido) {
-      throw new HttpError(404, 'Cliente não encontrado.');
-    }
+    try {
+      const removido = await deleteCliente(id);
+      if (!removido) {
+        throw new HttpError(404, 'Cliente não encontrado.');
+      }
 
-    sendSuccess(res, 200, true);
+      sendSuccess(res, 200, { id });
+    } catch (error) {
+      if (error && typeof error === 'object') {
+        const codigo = error.code;
+        const detalhes = error.details ?? (typeof error.detail === 'string' ? error.detail : undefined);
+        if (codigo === 'FK_DEPENDENCIAS' || codigo === '23503') {
+          throw new HttpError(
+            409,
+            'Não é possível excluir o cliente porque existem veículos ou ordens de serviço vinculados.',
+            detalhes,
+          );
+        }
+      }
+      throw error;
+    }
     return;
   }
   
   if (req.method === 'GET' && pathname === '/api/veiculos') {
     const veiculos = await getVeiculos();
     sendSuccess(res, 200, veiculos);
+    return;
+  }
+
+  if (req.method === 'GET' && /^\/api\/veiculos\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    const veiculo = await getVeiculoById(id);
+    if (!veiculo) {
+      throw new HttpError(404, 'Veículo não encontrado.');
+    }
+    sendSuccess(res, 200, veiculo);
     return;
   }
 
@@ -533,9 +645,34 @@ async function handleRequest(req, res) {
     return;
   }
 
+  if (req.method === 'DELETE' && /^\/api\/veiculos\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    if (!id) {
+      throw new HttpError(400, 'ID de veículo inválido.');
+    }
+
+    const removido = await deleteVeiculo(id);
+    if (!removido) {
+      throw new HttpError(404, 'Veículo não encontrado.');
+    }
+
+    sendSuccess(res, 200, true);
+    return;
+  }
+
   if (req.method === 'GET' && pathname === '/api/pecas') {
     const pecas = await getPecas();
     sendSuccess(res, 200, pecas);
+    return;
+  }
+
+  if (req.method === 'GET' && /^\/api\/pecas\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    const peca = await getPecaById(id);
+    if (!peca) {
+      throw new HttpError(404, 'Peça não encontrada.');
+    }
+    sendSuccess(res, 200, peca);
     return;
   }
 
@@ -589,7 +726,6 @@ async function handleRequest(req, res) {
     return;
   }
 
-    // DELETE /api/pecas/:id
   if (req.method === 'DELETE' && /^\/api\/pecas\/\d+$/.test(pathname)) {
     const id = Number(pathname.split('/').pop());
     if (!id) {
@@ -609,6 +745,67 @@ async function handleRequest(req, res) {
   if (req.method === 'GET' && pathname === '/api/servicos') {
     const servicos = await getServicos();
     sendSuccess(res, 200, servicos);
+    return;
+  }
+
+  if (req.method === 'GET' && /^\/api\/servicos\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    const servico = await getServicoById(id);
+    if (!servico) {
+      throw new HttpError(404, 'Serviço não encontrado.');
+    }
+    sendSuccess(res, 200, servico);
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/servicos') {
+    const body = await readJsonBody(req);
+    const descricao = normalizarTexto(body.descricao);
+    const preco = normalizarNumero(body.preco, 0);
+    if (!descricao) {
+      throw new HttpError(400, 'Descrição é obrigatória.');
+    }
+    const existente = await findServicoByDescricao(descricao);
+    if (existente) {
+      throw new HttpError(409, 'Já existe um serviço com esta descrição.');
+    }
+    const novo = await addServico({ descricao, preco });
+    sendSuccess(res, 201, novo);
+    return;
+  }
+
+  if (req.method === 'PUT' && /^\/api\/servicos\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    const body = await readJsonBody(req);
+    const descricao = normalizarTexto(body.descricao);
+    const preco = normalizarNumero(body.preco, 0);
+    if (!descricao) {
+      throw new HttpError(400, 'Descrição é obrigatória.');
+    }
+    const existente = await findServicoByDescricao(descricao);
+    if (existente && existente.id !== id) {
+      throw new HttpError(409, 'Já existe um serviço com esta descrição.');
+    }
+    const atualizado = await updateServico(id, { descricao, preco });
+    if (!atualizado) {
+      throw new HttpError(404, 'Serviço não encontrado.');
+    }
+    sendSuccess(res, 200, atualizado);
+    return;
+  }
+
+  if (req.method === 'DELETE' && /^\/api\/servicos\/\d+$/.test(pathname)) {
+    const id = Number(pathname.split('/').pop());
+    if (!id) {
+      throw new HttpError(400, 'ID de serviço inválido.');
+    }
+
+    const removido = await deleteServico(id);
+    if (!removido) {
+      throw new HttpError(404, 'Serviço não encontrado.');
+    }
+
+    sendSuccess(res, 200, true);
     return;
   }
 

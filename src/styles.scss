@@ -3,3 +3,58 @@
 @import 'tailwindcss/components';
 
 @import 'tailwindcss/utilities';
+
+/* ===== Impressão da O.S. ===== */
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+
+  .print-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .no-print,
+  app-sidebar,
+  app-navbar,
+  .sidebar,
+  .toolbar,
+  .menu,
+  .footer {
+    display: none !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  .print-area .valor-total span,
+  .print-area .valor-total .valor {
+    color: #000 !important;
+    font-weight: 700 !important;
+  }
+
+  .print-area .valor-total span:first-child {
+    color: #000 !important;
+  }
+}

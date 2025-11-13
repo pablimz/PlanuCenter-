@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DataService } from '../core/services/data.service';
 import { OrdemServico, Veiculo, Cliente, Servico, Peca } from '../core/models/models';
@@ -19,17 +19,20 @@ import { map } from 'rxjs';
         <button (click)="print()" class="bg-blue-500 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-600 transition-colors">Imprimir / Salvar PDF</button>
       </div>
 
-      <div id="printableArea" class="bg-white p-8 rounded-lg shadow-lg max-w-4xl mx-auto">
+      <div id="printableArea" class="print-area bg-white p-8 rounded-lg shadow-lg max-w-4xl mx-auto">
         <header class="flex justify-between items-start border-b pb-6">
             <div>
-              <h1 class="text-3xl font-bold text-gray-800">OficinaPRO</h1>
-              <p class="text-gray-500">Rua das Mecânicas, 123 - Bairro Industrial</p>
-              <p class="text-gray-500">Uberlândia, MG - (34) 99999-8888</p>
+              <h1 class="text-3xl font-bold text-gray-800">PlanuCenter</h1>
+              <p class="text-gray-500">Avenida Segismundo Novais - Centro</p>
+              <p class="text-gray-500">Planura, MG - (34) 99999-8888</p>
             </div>
             <div class="text-right">
               <h2 class="text-xl font-semibold text-gray-700">ORDEM DE SERVIÇO</h2>
-              <p class="text-2xl font-bold text-blue-600">#{{ details.os.id }}</p>
-              <p class="text-gray-500 mt-2">Data: {{ details.os.dataEntrada }}</p>
+              <p class="text-2xl font-bold text-gray-900">#{{ details.os.id }}</p>
+              <p class="text-gray-500 mt-2">Data de entrada: {{ details.os.dataEntrada }}</p>
+              @if(impressoEm()) {
+                <p class="text-gray-500">Impresso em: {{ impressoEm() }}</p>
+              }
             </div>
         </header>
         <section class="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6">
@@ -101,9 +104,9 @@ import { map } from 'rxjs';
                     <span class="text-gray-600">Total de Peças:</span>
                     <span class="font-medium text-gray-800">{{ details.totalPecas | currency:'BRL' }}</span>
                 </div>
-                <div class="flex justify-between border-t-2 pt-2 mt-2">
+                <div class="flex justify-between border-t-2 pt-2 mt-2 valor-total">
                     <span class="font-bold text-lg">VALOR TOTAL:</span>
-                    <span class="font-bold text-lg text-blue-600">{{ details.totalGeral | currency:'BRL' }}</span>
+                    <span class="font-bold text-lg valor">{{ details.totalGeral | currency:'BRL' }}</span>
                 </div>
             </div>
         </section>
@@ -125,7 +128,56 @@ export class ResumoOsComponent {
     this.route.paramMap.pipe(map(params => Number(params.get('id') ?? 0))),
     { initialValue: Number(this.route.snapshot.paramMap.get('id') ?? 0) }
   );
-  private currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+  private autoPrintQuery = toSignal(
+    this.route.queryParamMap.pipe(
+      map(params => {
+        const valor = params.get('autoPrint');
+        if (valor === null) {
+          return false;
+        }
+        const normalizado = valor.toLowerCase();
+        return normalizado !== 'false' && normalizado !== '0';
+      })
+    ),
+    {
+      initialValue: (() => {
+        const params = this.route.snapshot.queryParamMap;
+        if (!params.has('autoPrint')) {
+          return false;
+        }
+        const valor = (params.get('autoPrint') ?? '').toLowerCase();
+        return valor !== 'false' && valor !== '0';
+      })(),
+    }
+  );
+  readonly impressoEm = signal('');
+  private autoPrintDisparado = false;
+
+  private carregarOrdemEffect = effect(() => {
+    const id = this.osId();
+    if (!id) {
+      return;
+    }
+    void this.dataService
+      .obterOrdemServicoDetalhado(id)
+      .catch(error => {
+        console.error('Erro ao carregar ordem de serviço para impressão.', error);
+      });
+  });
+
+  private autoPrintEffect = effect(() => {
+    const detalhes = this.osDetails();
+    if (!detalhes) {
+      return;
+    }
+
+    this.impressoEm.set(this.formatarDataHora(new Date()));
+
+    if (this.autoPrintQuery() && !this.autoPrintDisparado) {
+      this.autoPrintDisparado = true;
+      setTimeout(() => this.print(), 150);
+    }
+  });
 
   osDetails = computed(() => {
     const id = this.osId();
@@ -158,190 +210,20 @@ export class ResumoOsComponent {
   });
 
   print() {
-    const detalhes = this.osDetails();
-    if (!detalhes) {
+    if (typeof window === 'undefined') {
       return;
     }
 
-    const janela = window.open('', '_blank', 'width=900,height=650');
-    if (!janela) {
-      console.error('Não foi possível abrir a janela de impressão.');
-      return;
-    }
-
-    const servicosLinhas = detalhes.servicos.length
-      ? detalhes.servicos
-          .map(item => `
-            <tr>
-              <td>${this.escapeHtml(item.descricao ?? 'Serviço')}</td>
-              <td class="text-center">${this.escapeHtml(item.qtde)}</td>
-              <td class="text-right">${this.escapeHtml(this.formatarMoeda(item.preco))}</td>
-              <td class="text-right">${this.escapeHtml(this.formatarMoeda(item.subtotal))}</td>
-            </tr>
-          `)
-          .join('')
-      : '<tr><td colspan="4" class="empty">Nenhum serviço informado.</td></tr>';
-
-    const pecasLinhas = detalhes.pecas.length
-      ? detalhes.pecas
-          .map(item => `
-            <tr>
-              <td>${this.escapeHtml(item.nome ?? 'Peça')}</td>
-              <td class="text-center">${this.escapeHtml(item.qtde)}</td>
-              <td class="text-right">${this.escapeHtml(this.formatarMoeda(item.preco))}</td>
-              <td class="text-right">${this.escapeHtml(this.formatarMoeda(item.subtotal))}</td>
-            </tr>
-          `)
-          .join('')
-      : '<tr><td colspan="4" class="empty">Nenhuma peça informada.</td></tr>';
-
-    const clienteNome = this.escapeHtml(detalhes.cliente?.nome ?? '—');
-    const veiculoDescricao = detalhes.veiculo
-      ? this.escapeHtml(`${detalhes.veiculo.marca} ${detalhes.veiculo.modelo}`.trim())
-      : '—';
-    const veiculoAno = this.escapeHtml(detalhes.veiculo?.ano ?? '—');
-    const veiculoPlaca = this.escapeHtml(detalhes.veiculo?.placa ?? '—');
-    const status = this.escapeHtml(detalhes.os.status);
-    const dataEntrada = this.escapeHtml(detalhes.os.dataEntrada);
-    const observacoes = detalhes.os.observacoes ? `<section class="observacoes">
-        <h3>Observações</h3>
-        <p>${this.escapeHtml(detalhes.os.observacoes)}</p>
-      </section>` : '';
-
-    const html = `<!DOCTYPE html>
-    <html lang="pt-BR">
-      <head>
-        <meta charset="utf-8" />
-        <title>Ordem de Serviço #${this.escapeHtml(detalhes.os.id)}</title>
-        <style>
-          :root { color-scheme: only light; }
-          * { box-sizing: border-box; }
-          body { margin: 0; padding: 32px; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: #fff; color: #111827; }
-          .container { max-width: 900px; margin: 0 auto; }
-          header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e5e7eb; padding-bottom: 24px; margin-bottom: 24px; }
-          h1 { margin: 0; font-size: 28px; color: #111827; }
-          h2 { margin: 0; font-size: 22px; color: #1f2937; }
-          h3 { font-size: 16px; color: #1f2937; margin: 24px 0 12px; }
-          p { margin: 4px 0; font-size: 14px; }
-          .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
-          th { text-align: left; background: #f3f4f6; color: #4b5563; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; padding: 10px 12px; }
-          td { padding: 12px; border-bottom: 1px solid #e5e7eb; font-size: 14px; color: #000; }
-          .text-right { text-align: right; }
-          .text-center { text-align: center; }
-          .empty { text-align: center; color: #6b7280; font-style: italic; }
-          .totais { margin-left: auto; max-width: 320px; }
-          .totais-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
-          .totais-row strong { font-size: 16px; color: #111827; }
-          footer { margin-top: 40px; border-top: 1px solid #e5e7eb; padding-top: 16px; text-align: center; font-size: 12px; color: #4b5563; }
-          .status-badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 9999px; background: #e0f2fe; color: #0369a1; font-size: 12px; font-weight: 600; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <header>
-            <div>
-              <h1>OficinaPRO</h1>
-              <p>Rua das Mecânicas, 123 - Bairro Industrial</p>
-              <p>Uberlândia, MG - (34) 99999-8888</p>
-            </div>
-            <div style="text-align: right;">
-              <h2>Ordem de Serviço</h2>
-              <p style="font-size: 26px; font-weight: 700; color: #2563eb; margin: 8px 0 0;">#${this.escapeHtml(detalhes.os.id)}</p>
-              <p>Data de entrada: ${dataEntrada}</p>
-              <p class="status-badge">${status}</p>
-            </div>
-          </header>
-
-          <section class="info-grid">
-            <div>
-              <h3>Cliente</h3>
-              <p style="font-weight: 600;">${clienteNome}</p>
-            </div>
-            <div>
-              <h3>Veículo</h3>
-              <p style="font-weight: 600;">${veiculoDescricao}</p>
-              <p>Placa: ${veiculoPlaca}</p>
-              <p>Ano: ${veiculoAno}</p>
-            </div>
-          </section>
-
-          <section>
-            <h3>Serviços Realizados</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Descrição</th>
-                  <th class="text-center">Qtde</th>
-                  <th class="text-right">Vl. Unit.</th>
-                  <th class="text-right">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>${servicosLinhas}</tbody>
-            </table>
-          </section>
-
-          <section>
-            <h3>Peças Utilizadas</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Descrição</th>
-                  <th class="text-center">Qtde</th>
-                  <th class="text-right">Vl. Unit.</th>
-                  <th class="text-right">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>${pecasLinhas}</tbody>
-            </table>
-          </section>
-
-          <div class="totais">
-            <div class="totais-row">
-              <span>Total de serviços:</span>
-              <span>${this.escapeHtml(this.formatarMoeda(detalhes.totalServicos))}</span>
-            </div>
-            <div class="totais-row">
-              <span>Total de peças:</span>
-              <span>${this.escapeHtml(this.formatarMoeda(detalhes.totalPecas))}</span>
-            </div>
-            <div class="totais-row" style="margin-top: 12px; border-top: 1px solid #e5e7eb; padding-top: 12px;">
-              <strong>Valor total:</strong>
-              <strong>${this.escapeHtml(this.formatarMoeda(detalhes.totalGeral))}</strong>
-            </div>
-          </div>
-
-          ${observacoes}
-
-          <footer>
-            <p>Todos os nossos serviços e produtos possuem 3 meses de garantia.</p>
-            <p style="font-weight: 600;">Obrigado pela preferência!</p>
-          </footer>
-        </div>
-      </body>
-    </html>`;
-
-    janela.document.open();
-    janela.document.write(html);
-    janela.document.close();
-    janela.focus();
-    janela.onload = () => {
-      janela.print();
-      janela.close();
-    };
+    this.impressoEm.set(this.formatarDataHora(new Date()));
+    window.print();
   }
 
-  private formatarMoeda(valor: number | null | undefined) {
-    return this.currencyFormatter.format(Number.isFinite(Number(valor)) ? Number(valor) : 0);
-  }
-
-  private escapeHtml(valor: unknown) {
-    const texto = `${valor ?? ''}`;
-    return texto
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+  private formatarDataHora(data: Date) {
+    const dataFormatada = data.toLocaleDateString('pt-BR');
+    const horaFormatada = data.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    return `${dataFormatada} às ${horaFormatada}`;
   }
 }
